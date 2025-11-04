@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Mirror Loop v0.3.5</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body {
+  background: linear-gradient(120deg,#0f2027,#203a43,#2c5364);
+  color:#fff; font-family:'Noto Sans JP',sans-serif; text-align:center; margin:0;
+}
+.container {
+  margin:60px auto; max-width:680px;
+  background:rgba(255,255,255,0.1); padding:30px; border-radius:16px; backdrop-filter:blur(8px);
+}
+input { width:80%; padding:10px; border:none; border-radius:8px; }
+button {
+  margin:12px 6px 0; padding:10px 18px; border:none; border-radius:8px;
+  background:linear-gradient(90deg,#00c6ff,#0072ff); color:#fff; cursor:pointer;
+}
+button:hover { background:linear-gradient(90deg,#92fe9d,#00c9ff); color:#111; }
+.box { margin-top:18px; background:rgba(255,255,255,0.1); border-radius:10px; padding:16px; text-align:left; }
+a { color:#00c9ff; text-decoration:none; }
+canvas { margin-top:24px; }
+pre { white-space:pre-wrap; word-break:break-word; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>🩵 Mirror Loop v0.3.5</h1>
+    <p>毎日Reflect → 1週間ごとにAIが“心の週報”を作成します</p>
+
+    <input id="userInput" placeholder="例: 今日は落ち着いて過ごせた">
+    <div>
+      <button onclick="reflect()">Reflect</button>
+      <button onclick="makeWeekly()">週報を作成</button>
+    </div>
+
+    <div id="result" class="box"></div>
+
+    <canvas id="emotionChart" width="520" height="220"></canvas>
+
+    <div id="weekly" class="box" style="display:none;">
+      <h3>📅 今週のレポート</h3>
+      <div id="weeklyStats"></div>
+      <pre id="weeklyComment"></pre>
+      <div id="weeklyAd"></div>
+    </div>
+  </div>
+
+<script>
+const user_id = "guest"; // デモ用
+
+async function reflect(){
+  const message = document.getElementById("userInput").value;
+  const res = await fetch("/reflect", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({message,user_id})
+  });
+  const data = await res.json();
+  document.getElementById("result").innerHTML =
+    `💭 感情：${data.emotion}（スコア:${data.score}）<br>`+
+    `💡 ${data.advice}<br>`+
+    `🔗 <a href="${getAdUrl(data.category)}" target="_blank">関連商品を見る</a>`;
+  await drawChart();
+}
+
+async function makeWeekly(){
+  const res = await fetch("/weekly_report/"+user_id);
+  const payload = await res.json();
+  if(payload.error){
+    alert(payload.error);
+    return;
+  }
+  const s = payload.summary;
+  const stats =
+    `平均スコア：${s.avg}　最大：${s.max}　最小：${s.min}　傾向：${s.trend}　主要カテゴリ：${s.top_category}`;
+  document.getElementById("weeklyStats").textContent = stats;
+  document.getElementById("weeklyComment").textContent = payload.comment;
+  document.getElementById("weeklyAd").innerHTML =
+    `🛒 おすすめ：<a href="${payload.ad_url}" target="_blank">${payload.ad_url}</a>`;
+  document.getElementById("weekly").style.display = "block";
+}
+
+async function drawChart(){
+  const res = await fetch("/history/"+user_id);
+  const data = await res.json();
+  const labels = data.map(d => d[0]);
+  const scores = data.map(d => d[1]);
+
+  const ctx = document.getElementById('emotionChart').getContext('2d');
+  if(window._chart) window._chart.destroy();
+  window._chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label:'感情スコア（過去7日）',
+        data:scores,
+        borderColor:'#00c9ff',
+        backgroundColor:'rgb
