@@ -1,206 +1,236 @@
-import os, logging, sqlite3, datetime, statistics, json
-from flask import Flask, request, jsonify, render_template, g
-import openai
-
-app = Flask(__name__)
-logging.basicConfig(level=logging.INFO)
-
-openai.api_key = os.environ.get("OPENAI_API_KEY")
-DB_PATH = "mirrorloop.db"
-
-# ---------- DB ----------
-def get_db():
-    db = getattr(g, "_database", None)
-    if db is None:
-        db = g._database = sqlite3.connect(DB_PATH)
-    return db
-
-@app.teardown_appcontext
-def close_connection(exception):
-    db = getattr(g, "_database", None)
-    if db is not None:
-        db.close()
-
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS emotions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT,
-            emotion TEXT,
-            score INTEGER,
-            category TEXT,
-            date TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
-init_db()
-
-# ---------- AI ----------
-def analyze_emotion(user_input):
-    prompt = f"""
-    あなたは「Mirror Loop」という短文リフレクションAIです。
-    ユーザー入力を読み取り、以下のJSONのみを出力してください（説明文や余計な文字は出さない）。
-
-    要件:
-    - "emotion": 直感的な感情名（日本語, 1〜2語）
-    - "score": 0〜100の整数（70=良い, 50=普通, 30=低い）
-    - "advice": 70文字以内の前向きな一言。絵文字1つ程度OK
-    - "category": "healing" | "learning" | "action" | "creative" のいずれか
-    - "followup": 次に聞く短い質問（20文字以内, 敬語, 絵文字なし）
-
-    形式のみ:
-    {{"emotion":"", "score": 0, "advice":"", "category":"", "followup":""}}
-
-    ユーザー: 「{user_input}」
-    """.strip()
-
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.6
-        )
-        return response.choices[0].message["content"]
-    except Exception as e:
-        logging.error(e)
-        # フォールバック
-        return json.dumps({
-            "emotion":"不明","score":50,
-            "advice":"深呼吸でリセットしましょう。",
-            "category":"healing",
-            "followup":"今日は何が印象的でしたか？"
-        }, ensure_ascii=False)
-
-def weekly_comment_ai(summary):
-    prompt = f"""
-    以下の1週間の感情データ要約に基づき、
-    1) 100文字以内の「今週のひとこと」
-    2) 箇条書き3つの「来週のおすすめ行動」
-    を日本語で短く出力してください。
-
-    データ:
-    {json.dumps(summary, ensure_ascii=False)}
-    """
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.6
-        )
-        return response.choices[0].message["content"].strip()
-    except Exception as e:
-        logging.error(e)
-        return "今週のひとこと：データ解析に失敗しました。\n・短い深呼吸\n・10分散歩\n・早寝"
-
-# ---------- 保存/取得 ----------
-def save_emotion(user_id, emotion, score, category):
-    conn = get_db()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO emotions (user_id, emotion, score, category, date) VALUES (?, ?, ?, ?, ?)",
-        (user_id, emotion, score, category, datetime.date.today().isoformat())
-    )
-    conn.commit()
-
-def get_recent_emotions(user_id, days=7):
-    conn = get_db()
-    c = conn.cursor()
-    since = (datetime.date.today() - datetime.timedelta(days=days-1)).isoformat()
-    c.execute(
-        "SELECT date, score, emotion, category FROM emotions WHERE user_id=? AND date>=? ORDER BY date ASC",
-        (user_id, since)
-    )
-    return c.fetchall()
-
-# ---------- ルーティング ----------
-@app.route("/")
-def index():
-    return render_template("index_v35.html")
-
-@app.route("/reflect", methods=["POST"])
-def reflect():
-    data = request.get_json(force=True)
-    user_input = data.get("message", "")
-    user_id = data.get("user_id", "guest")
-
-    ai_json = analyze_emotion(user_input)
-    try:
-        result = json.loads(ai_json)
-    except Exception as e:
-        logging.warning("JSON parse fallback: %s", e)
-        result = {
-            "emotion":"不明","score":50,
-            "advice":"深呼吸でリセットしましょう。",
-            "category":"healing",
-            "followup":"今日は何が印象的でしたか？"
-        }
-
-    # 保存（会話はクライアント側で管理。蓄積はスコア統計のみ）
-    try:
-        save_emotion(user_id, result["emotion"], int(result["score"]), result["category"])
-    except Exception as e:
-        logging.error("DB save failed: %s", e)
-
-    return jsonify(result)
-
-@app.route("/history/<user_id>")
-def history(user_id):
-    rows = get_recent_emotions(user_id, days=7)
-    return jsonify(rows)
-
-@app.route("/weekly_report/<user_id>")
-def weekly_report(user_id):
-    rows = get_recent_emotions(user_id, days=7)
-    if not rows:
-        return jsonify({"error":"データがありません"}), 404
-
-    days = [r[0] for r in rows]
-    scores = [int(r[1]) for r in rows]
-    emotions = [r[2] for r in rows]
-    cats = [r[3] for r in rows]
-
-    avg = round(statistics.mean(scores), 1)
-    mx = max(scores); mn = min(scores)
-    delta = scores[-1] - scores[0]
-    trend = "上向き" if delta>=5 else ("下向き" if delta<=-5 else "横ばい")
-
-    from collections import Counter
-    top_category = Counter(cats).most_common(1)[0][0]
-
-    summary = {
-        "days": days,
-        "scores": scores,
-        "emotions": emotions,
-        "avg": avg,
-        "max": mx,
-        "min": mn,
-        "trend": trend,
-        "top_category": top_category
-    }
-
-    comment = weekly_comment_ai(summary)
-    ad_url = pick_ad_by_category(top_category)
-
-    return jsonify({
-        "summary": summary,
-        "comment": comment,
-        "ad_url": ad_url
-    })
-
-# ---------- 広告（カテゴリ別リンク） ----------
-ADS = {
-    "healing": "https://www.amazon.co.jp/s?k=%E7%99%92%E3%81%97",
-    "learning": "https://www.amazon.co.jp/s?k=%E8%B3%87%E6%A0%BC",
-    "action": "https://www.amazon.co.jp/s?k=%E3%82%AC%E3%82%B8%E3%82%A7%E3%83%83%E3%83%88",
-    "creative": "https://www.amazon.co.jp/s?k=AI+%E3%82%A2%E3%83%BC%E3%83%88"
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Mirror Loop v0.3.6</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+/* （前回のテーマ/背景/ボタン/トグルCSSは同じ） */
+:root{
+  --bg1:#081221; --bg2:#0f2027; --bg3:#203a43; --bg4:#2c5364;
+  --text:#ffffff; --muted:#c9d1d9;
+  --card-bg:rgba(255,255,255,0.08);
+  --card-border:rgba(255,255,255,0.12);
+  --accent1:#00c6ff; --accent2:#0072ff;
+  --shadow:0 8px 24px rgba(0,0,0,0.35);
 }
-DEFAULT_AD = ADS["healing"]
+:root[data-theme="light"]{
+  --bg1:#e6f1ff; --bg2:#f7fbff; --bg3:#eef6ff; --bg4:#e6f1ff;
+  --text:#0b1220; --muted:#475569;
+  --card-bg:rgba(255,255,255,0.7);
+  --card-border:rgba(0,0,0,0.08);
+  --accent1:#3b82f6; --accent2:#06b6d4;
+  --shadow:0 8px 24px rgba(0,0,0,0.10);
+}
+body{
+  margin:0; font-family:'Noto Sans JP',system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text); overflow-x:hidden;
+  background: radial-gradient(circle at 15% 20%, var(--bg1), var(--bg2), var(--bg3), var(--bg4));
+  background-size: 200% 200%; animation: breathe 18s ease-in-out infinite;
+}
+@keyframes breathe{ 0%{background-position:0% 0%} 50%{background-position:100% 100%} 100%{background-position:0% 0%} }
+.container{ min-height:100svh; display:flex; align-items:center; justify-content:center; padding:24px; }
+.card{ width:min(860px, 96%); padding:28px 22px; border-radius:20px; background:var(--card-bg); border:1px solid var(--card-border); backdrop-filter:blur(12px); box-shadow:var(--shadow); animation:fadeIn .8s ease; }
+@keyframes fadeIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.header{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
+h1{ margin:0; font-size:1.8rem; font-weight:800; background:linear-gradient(90deg,var(--accent1),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.subtitle{margin:6px 0 18px; color:var(--muted); text-align:left;}
+.input{ width:100%; padding:12px 14px; border:none; border-radius:12px; background:rgba(255,255,255,0.12); color:var(--text); font-size:1rem; outline:none; }
+:root[data-theme="light"] .input{ background:rgba(0,0,0,0.05); }
+.btns{ display:flex; gap:10px; flex-wrap:wrap; margin:12px 0 6px; }
+.btn{ position:relative; overflow:hidden; padding:12px 18px; border:none; border-radius:12px; background:linear-gradient(90deg,var(--accent1),var(--accent2)); color:#fff; font-weight:700; cursor:pointer; transition:transform .15s ease; }
+.btn.secondary{ background:transparent; color:var(--text); border:1px solid var(--card-border); }
+.btn:active{ transform:scale(.98) }
+.btn .ripple{ position:absolute; border-radius:50%; transform:scale(0); background:rgba(255,255,255,.45); pointer-events:none; animation:ripple .6s linear; }
+@keyframes ripple{ to{ transform:scale(12); opacity:0 } }
+.box{ margin-top:14px; padding:16px; border-radius:12px; background:var(--card-bg); border:1px solid var(--card-border); }
+a{ color:var(--accent1); text-decoration:none }
+canvas{ margin-top:18px; width:100% !important; max-height:260px }
+pre{ white-space:pre-wrap; word-break:break-word }
+.toggle{ display:inline-flex; align-items:center; gap:8px; user-select:none; font-size:.9rem; color:var(--muted) }
+.switch{ --w:46px; --h:26px; width:var(--w); height:var(--h); border-radius:999px; position:relative; background:rgba(255,255,255,.2); border:1px solid var(--card-border) }
+.switch input{ display:none }
+.knob{ position:absolute; top:2px; left:2px; width:22px; height:22px; border-radius:50%; background:#fff; transition:left .18s ease }
+input:checked + .knob{ left:22px }
+.footer{ margin-top:10px; font-size:.85rem; color:var(--muted); text-align:center }
 
-def pick_ad_by_category(cat):
-    return ADS.get(cat, DEFAULT_AD)
+/* チャット */
+.chat{ display:flex; flex-direction:column; gap:10px; margin-top:12px; }
+.bubble{ max-width:78%; padding:10px 12px; border-radius:14px; line-height:1.55; }
+.user{ align-self:flex-start; background:rgba(255,255,255,0.12); border:1px solid var(--card-border) }
+.ai{ align-self:flex-end; background:linear-gradient(90deg,var(--accent1),var(--accent2)); color:#fff }
+.meta{ font-size:.85rem; color:var(--muted); margin-top:6px }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="header">
+        <h1>💎 Mirror Loop v0.3.6</h1>
+        <label class="toggle" title="テーマ切替">
+          <span>Light</span>
+          <div class="switch"><input id="themeCheck" type="checkbox" /><span class="knob"></span></div>
+          <span>Dark</span>
+        </label>
+      </div>
+      <p class="subtitle">毎日Reflect → 会話式で“心の週報”を作成します</p>
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+      <input id="userInput" class="input" placeholder="例：今日は落ち着いて過ごせた">
+      <div class="btns">
+        <button class="btn" id="reflectBtn">💭 Reflect</button>
+        <button class="btn secondary" id="weeklyBtn">📅 週報を作成</button>
+      </div>
+
+      <div id="result" class="box">
+        <div class="chat" id="chat"></div>
+        <div class="meta" id="metaNote">入力して「Reflect」を押すと会話が始まります。</div>
+      </div>
+
+      <canvas id="emotionChart"></canvas>
+
+      <div id="weekly" class="box" style="display:none;">
+        <h3 style="margin:0 0 8px">📊 今週のAIレポート</h3>
+        <div id="weeklyStats"></div>
+        <pre id="weeklyComment" style="margin:8px 0 0"></pre>
+        <div id="weeklyAd" style="margin-top:8px"></div>
+      </div>
+
+      <div class="footer">© Mirror Loop</div>
+    </div>
+  </div>
+
+<script>
+const user_id = "guest";
+
+/* Ripple */
+function addRipple(e){
+  const btn = e.currentTarget; const old = btn.querySelector('.ripple'); if(old) old.remove();
+  const circle = document.createElement('span'); const d = Math.max(btn.clientWidth, btn.clientHeight);
+  circle.style.width = circle.style.height = d + 'px';
+  const rect = btn.getBoundingClientRect();
+  circle.style.left = (e.clientX - rect.left - d/2) + 'px';
+  circle.style.top  = (e.clientY - rect.top  - d/2) + 'px';
+  circle.className = 'ripple'; btn.appendChild(circle);
+}
+
+/* Theme */
+const root = document.documentElement;
+const themeCheck = document.getElementById('themeCheck');
+(function initTheme(){
+  const saved = localStorage.getItem('ml-theme') || 'dark';
+  root.setAttribute('data-theme', saved);
+  themeCheck.checked = (saved === 'dark');
+})();
+themeCheck.addEventListener('change', ()=>{
+  const mode = themeCheck.checked ? 'dark' : 'light';
+  root.setAttribute('data-theme', mode);
+  localStorage.setItem('ml-theme', mode);
+  if(window._chart){
+    const color = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#fff';
+    window._chart.options.scales.y.ticks.color = color;
+    window._chart.options.scales.x.ticks.color = color;
+    window._chart.options.plugins.legend.labels.color = color;
+    window._chart.update();
+  }
+});
+
+/* Chat helpers */
+const chat = [];
+function pushUser(text){ chat.push({role:'user', text}); renderChat(); }
+function pushAI(text){ chat.push({role:'ai', text}); renderChat(); }
+function renderChat(){
+  const el = document.getElementById('chat'); el.innerHTML = '';
+  chat.forEach(m=>{
+    const div = document.createElement('div');
+    div.className = 'bubble ' + (m.role==='user'?'user':'ai');
+    div.textContent = m.text;
+    el.appendChild(div);
+  });
+  document.getElementById('metaNote').style.display = chat.length ? 'none' : 'block';
+  el.scrollTop = el.scrollHeight;
+}
+
+/* API */
+async function reflectOnce(message){
+  const res = await fetch("/reflect", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({message,user_id})
+  });
+  return await res.json();
+}
+
+async function reflect(){
+  const input = document.getElementById("userInput");
+  const text = (input.value || '').trim();
+  if(!text) return;
+  pushUser(text);
+  input.value = '';
+
+  const data = await reflectOnce(text);
+  const aiMain =
+    `感情：${data.emotion}（スコア:${data.score}）\n`+
+    `アドバイス：${data.advice}`;
+  pushAI(aiMain);
+
+  // 次の質問
+  if(data.followup){
+    pushAI('次の質問：' + data.followup);
+    input.placeholder = data.followup;
+  }
+
+  await drawChart();
+}
+
+async function makeWeekly(){
+  const res = await fetch("/weekly_report/"+user_id);
+  const payload = await res.json();
+  if(payload.error){ alert(payload.error); return; }
+  const s = payload.summary;
+  document.getElementById("weeklyStats").textContent =
+    `平均スコア：${s.avg}　最大：${s.max}　最小：${s.min}　傾向：${s.trend}　主要カテゴリ：${s.top_category}`;
+  document.getElementById("weeklyComment").textContent = payload.comment;
+  document.getElementById("weeklyAd").innerHTML =
+    `🛒 おすすめ：<a href="${payload.ad_url}" target="_blank" rel="noopener">${payload.ad_url}</a>`;
+  document.getElementById("weekly").style.display = "block";
+}
+
+async function drawChart(){
+  const res = await fetch("/history/"+user_id);
+  const data = await res.json();
+  const labels = data.map(d => d[0]);
+  const scores = data.map(d => d[1]);
+  const ctx = document.getElementById('emotionChart').getContext('2d');
+  if(window._chart) window._chart.destroy();
+  const tickColor = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#fff';
+  window._chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label:'感情スコア（過去7日）',
+        data:scores,
+        borderColor:getComputedStyle(document.documentElement).getPropertyValue('--accent1').trim() || '#00c9ff',
+        backgroundColor:'rgba(0,201,255,0.18)',
+        fill:true, tension:0.35, pointRadius:4
+      }]
+    },
+    options:{
+      scales:{ y:{min:0,max:100,ticks:{color:tickColor}}, x:{ticks:{color:tickColor}} },
+      plugins:{ legend:{ labels:{ color:tickColor } } },
+      animation:{ duration:600 }
+    }
+  });
+}
+
+/* Events */
+document.getElementById('reflectBtn').addEventListener('click', (e)=>{ addRipple(e); reflect(); });
+document.getElementById('weeklyBtn').addEventListener('click', (e)=>{ addRipple(e); makeWeekly(); });
+document.getElementById('userInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ reflect(); } });
+
+/* 初期 */
+drawChart();
+</script>
+</body>
+</html>
