@@ -7,50 +7,96 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 body {
-  background: linear-gradient(120deg,#0f2027,#203a43,#2c5364);
-  color:#fff; font-family:'Noto Sans JP',sans-serif; text-align:center; margin:0;
+  margin:0;
+  font-family:'Noto Sans JP',sans-serif;
+  background: radial-gradient(circle at 20% 30%, #081221, #0f2027, #203a43, #2c5364);
+  color:#fff;
+  overflow-x:hidden;
 }
 .container {
-  margin:60px auto; max-width:680px;
-  background:rgba(255,255,255,0.1); padding:30px; border-radius:16px; backdrop-filter:blur(8px);
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:center; min-height:100vh;
+  padding:20px;
 }
-input { width:80%; padding:10px; border:none; border-radius:8px; }
+.glass-box {
+  background:rgba(255,255,255,0.07);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:20px;
+  padding:40px 25px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.4);
+  backdrop-filter:blur(12px);
+  width:100%; max-width:600px;
+  animation:fadeIn 1.2s ease;
+}
+@keyframes fadeIn {
+  from {opacity:0; transform:translateY(30px);}
+  to {opacity:1; transform:translateY(0);}
+}
+h1 {
+  font-weight:700; font-size:1.8em;
+  text-align:center;
+  background:linear-gradient(90deg,#00c6ff,#0072ff);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  margin-bottom:12px;
+}
+input {
+  width:100%; padding:12px; border:none; border-radius:10px;
+  margin-bottom:14px;
+  font-size:1em;
+  background:rgba(255,255,255,0.12);
+  color:#fff;
+}
 button {
-  margin:12px 6px 0; padding:10px 18px; border:none; border-radius:8px;
-  background:linear-gradient(90deg,#00c6ff,#0072ff); color:#fff; cursor:pointer;
+  margin:6px; padding:12px 18px; border:none;
+  border-radius:10px;
+  background:linear-gradient(90deg,#00c6ff,#0072ff);
+  color:#fff; font-weight:600;
+  cursor:pointer;
+  transition:0.2s;
 }
-button:hover { background:linear-gradient(90deg,#92fe9d,#00c9ff); color:#111; }
-.box { margin-top:18px; background:rgba(255,255,255,0.1); border-radius:10px; padding:16px; text-align:left; }
+button:hover {
+  transform:scale(1.05);
+  background:linear-gradient(90deg,#92fe9d,#00c9ff);
+  color:#111;
+}
+.box {
+  background:rgba(255,255,255,0.08);
+  border-radius:12px;
+  padding:16px;
+  margin-top:16px;
+  line-height:1.6;
+}
 a { color:#00c9ff; text-decoration:none; }
-canvas { margin-top:24px; }
+canvas { margin-top:24px; width:100%; max-width:520px; }
 pre { white-space:pre-wrap; word-break:break-word; }
 </style>
 </head>
 <body>
   <div class="container">
-    <h1>🩵 Mirror Loop v0.3.5</h1>
-    <p>毎日Reflect → 1週間ごとにAIが“心の週報”を作成します</p>
+    <div class="glass-box">
+      <h1>💎 Mirror Loop v0.3.5</h1>
+      <p style="text-align:center;">毎日Reflect → 1週間ごとにAIが“心の週報”を生成します</p>
+      <input id="userInput" placeholder="例：今日は落ち着いて過ごせた">
+      <div style="text-align:center;">
+        <button onclick="reflect()">💭 Reflect</button>
+        <button onclick="makeWeekly()">📅 週報を作成</button>
+      </div>
 
-    <input id="userInput" placeholder="例: 今日は落ち着いて過ごせた">
-    <div>
-      <button onclick="reflect()">Reflect</button>
-      <button onclick="makeWeekly()">週報を作成</button>
-    </div>
+      <div id="result" class="box"></div>
+      <canvas id="emotionChart"></canvas>
 
-    <div id="result" class="box"></div>
-
-    <canvas id="emotionChart" width="520" height="220"></canvas>
-
-    <div id="weekly" class="box" style="display:none;">
-      <h3>📅 今週のレポート</h3>
-      <div id="weeklyStats"></div>
-      <pre id="weeklyComment"></pre>
-      <div id="weeklyAd"></div>
+      <div id="weekly" class="box" style="display:none;">
+        <h3>📊 今週のAIレポート</h3>
+        <div id="weeklyStats"></div>
+        <pre id="weeklyComment"></pre>
+        <div id="weeklyAd"></div>
+      </div>
     </div>
   </div>
 
 <script>
-const user_id = "guest"; // デモ用
+const user_id = "guest";
 
 async function reflect(){
   const message = document.getElementById("userInput").value;
@@ -70,14 +116,10 @@ async function reflect(){
 async function makeWeekly(){
   const res = await fetch("/weekly_report/"+user_id);
   const payload = await res.json();
-  if(payload.error){
-    alert(payload.error);
-    return;
-  }
+  if(payload.error){ alert(payload.error); return; }
   const s = payload.summary;
-  const stats =
+  document.getElementById("weeklyStats").textContent =
     `平均スコア：${s.avg}　最大：${s.max}　最小：${s.min}　傾向：${s.trend}　主要カテゴリ：${s.top_category}`;
-  document.getElementById("weeklyStats").textContent = stats;
   document.getElementById("weeklyComment").textContent = payload.comment;
   document.getElementById("weeklyAd").innerHTML =
     `🛒 おすすめ：<a href="${payload.ad_url}" target="_blank">${payload.ad_url}</a>`;
@@ -89,7 +131,6 @@ async function drawChart(){
   const data = await res.json();
   const labels = data.map(d => d[0]);
   const scores = data.map(d => d[1]);
-
   const ctx = document.getElementById('emotionChart').getContext('2d');
   if(window._chart) window._chart.destroy();
   window._chart = new Chart(ctx, {
@@ -100,4 +141,27 @@ async function drawChart(){
         label:'感情スコア（過去7日）',
         data:scores,
         borderColor:'#00c9ff',
-        backgroundColor:'rgb
+        backgroundColor:'rgba(0,201,255,0.2)',
+        fill:true, tension:0.35, pointRadius:4
+      }]
+    },
+    options:{
+      scales:{ y:{min:0,max:100,ticks:{color:'#fff'}},x:{ticks:{color:'#fff'}}},
+      plugins:{ legend:{labels:{color:'#fff'}} }
+    }
+  });
+}
+
+function getAdUrl(category){
+  const links = {
+    healing:"https://www.amazon.co.jp/s?k=%E7%99%92%E3%81%97",
+    learning:"https://www.amazon.co.jp/s?k=%E8%B3%87%E6%A0%BC",
+    action:"https://www.amazon.co.jp/s?k=%E3%82%AC%E3%82%B8%E3%82%A7%E3%83%83%E3%83%88",
+    creative:"https://www.amazon.co.jp/s?k=AI+%E3%82%A2%E3%83%BC%E3%83%88"
+  };
+  return links[category] || links["healing"];
+}
+drawChart();
+</script>
+</body>
+</html>
