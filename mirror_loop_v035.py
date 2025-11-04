@@ -2,31 +2,22 @@ import os, logging, sqlite3, datetime, json, statistics
 from flask import Flask, request, jsonify, render_template, g
 from openai import OpenAI
 
-# ---------------------------------------------------------------------
-# 基本設定
-# ---------------------------------------------------------------------
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 DB_PATH = "mirrorloop.db"
 
-
-# ---------------------------------------------------------------------
-# DB接続
-# ---------------------------------------------------------------------
 def get_db():
     db = getattr(g, "_database", None)
     if db is None:
         db = g._database = sqlite3.connect(DB_PATH)
     return db
 
-
 @app.teardown_appcontext
 def close_connection(exception):
     db = getattr(g, "_database", None)
     if db is not None:
         db.close()
-
 
 def init_db():
     with app.app_context():
@@ -43,7 +34,6 @@ def init_db():
         """)
         db.commit()
 
-
 def save_emotion(user_id, emotion, score, category):
     db = get_db()
     db.execute(
@@ -51,7 +41,6 @@ def save_emotion(user_id, emotion, score, category):
         (user_id, datetime.date.today().isoformat(), emotion, score, category),
     )
     db.commit()
-
 
 def fetch_weekly(user_id):
     db = get_db()
@@ -61,17 +50,13 @@ def fetch_weekly(user_id):
     )
     return cur.fetchall()
 
-
-# ---------------------------------------------------------------------
-# OpenAI分析関数
-# ---------------------------------------------------------------------
 def analyze_emotion(user_input):
     prompt = f"""
     あなたは「Mirror Loop」という短文リフレクションAIです。
-    ユーザー入力を読み取り、以下のJSONのみを出力してください（説明文や余計な文字は禁止）。
+    ユーザー入力を読み取り、以下のJSONのみを出力してください。
 
     {{
-      "emotion": "（感情1〜2語）",
+      "emotion": "感情1〜2語",
       "score": 数値0〜100,
       "advice": "70文字以内の一言アドバイス",
       "category": "healing" または "learning" または "action" または "creative",
@@ -98,15 +83,13 @@ def analyze_emotion(user_input):
             "followup": "今日は何が印象的でしたか？"
         }, ensure_ascii=False)
 
-
 def weekly_comment_ai(summary):
     prompt = f"""
-    以下の1週間の感情データをまとめ、簡潔にまとめてください。
-    1) 100文字以内の「今週のまとめ」
-    2) 箇条書き3つの「来週への提案」
+    以下の1週間の感情データに基づいて短くまとめてください。
+    1) 100文字以内のまとめ
+    2) 箇条書き3つの提案
     日本語で出力。
 
-    データ:
     {json.dumps(summary, ensure_ascii=False)}
     """
 
@@ -121,28 +104,20 @@ def weekly_comment_ai(summary):
         logging.error(f"Weekly comment error: {e}")
         return "今週のまとめ：データ解析に失敗しました。\n・短い深呼吸\n・10分散歩\n・早寝"
 
-
-# ---------------------------------------------------------------------
-# ルート
-# ---------------------------------------------------------------------
 @app.route("/")
 def index():
-    return render_template("index_v35.html")
-
+    return render_template("index_v36.html")
 
 @app.route("/reflect", methods=["POST"])
 def reflect():
     data = request.get_json(force=True)
     user_input = data.get("message", "")
     user_id = data.get("user_id", "guest")
-
     ai_json = analyze_emotion(user_input)
     try:
         result = json.loads(ai_json)
-    except Exception as e:
-        logging.warning("JSON parse fallback: %s", e)
+    except Exception:
         result = {}
-
     result = {
         "emotion": result.get("emotion", "不明"),
         "score": int(result.get("score", 50) or 50),
@@ -150,14 +125,8 @@ def reflect():
         "category": result.get("category", "healing"),
         "followup": result.get("followup", "今日は何が印象的でしたか？"),
     }
-
-    try:
-        save_emotion(user_id, result["emotion"], int(result["score"]), result["category"])
-    except Exception as e:
-        logging.error("DB save failed: %s", e)
-
+    save_emotion(user_id, result["emotion"], result["score"], result["category"])
     return jsonify(result)
-
 
 @app.route("/weekly_report", methods=["GET"])
 def weekly_report():
@@ -165,7 +134,6 @@ def weekly_report():
     rows = fetch_weekly(user_id)
     if not rows:
         return jsonify({"summary": "まだデータがありません。"})
-
     scores = [r[2] for r in rows]
     summary = {
         "平均スコア": round(statistics.mean(scores), 1),
@@ -173,14 +141,9 @@ def weekly_report():
         "最低スコア": min(scores),
         "件数": len(rows),
     }
-
     comment = weekly_comment_ai(summary)
     return jsonify({"summary": summary, "comment": comment})
 
-
-# ---------------------------------------------------------------------
-# 起動
-# ---------------------------------------------------------------------
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5000)
