@@ -10,24 +10,24 @@ client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "")).with_options(timeo
 def _extract_json(text: str) -> dict:
     if not text:
         return {}
-    fence = re.search(r"```json\s*(\{[\s\S]*?\})\s*```", text, re.I)
-    cand = fence.group(1) if fence else (re.search(r"\{[\s\S]*\}", text).group(0) if re.search(r"\{[\s\S]*\}", text) else "{}")
+    m = re.search(r"```json\s*(\{[\s\S]*?\})\s*```", text, re.I)
+    body = m.group(1) if m else (re.search(r"\{[\s\S]*\}", text).group(0) if re.search(r"\{[\s\S]*\}", text) else "{}")
     try:
-        return json.loads(cand)
+        return json.loads(body)
     except Exception:
-        cand2 = re.sub(r",\s*([\}\]])", r"\1", cand)
+        body = re.sub(r",\s*([\}\]])", r"\1", body)
         try:
-            return json.loads(cand2)
+            return json.loads(body)
         except Exception:
             return {}
-
-@app.get("/health")
-def health():
-    return "ok", 200
 
 @app.get("/")
 def index():
     return render_template("index_v36.html")
+
+@app.get("/health")
+def health():
+    return "ok", 200
 
 @app.post("/reflect")
 def reflect():
@@ -40,39 +40,28 @@ def reflect():
             "あなたは共感的なメンタルコーチ。日本語で次のJSONだけを返す。"
             '形式: {"summary":"1行要約","advice":["助言1","助言2"],'
             '"category":"感情カテゴリ","score":数値(0-100),"followup":"次の一言(20字以内)"}'
-            " 一度で完結させ、会話を継続させない。出力以外の文は一切書かない。"
+            " 出力以外の文は一切書かない。"
         )
 
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             temperature=0.6,
             max_tokens=220,
-            messages=[
-                {"role":"system","content":system},
-                {"role":"user","content":user_input}
-            ]
+            messages=[{"role":"system","content":system},{"role":"user","content":user_input}]
         )
-        text = (resp.choices[0].message.content or "").strip()
-        data = _extract_json(text)
+        txt = (resp.choices[0].message.content or "").strip()
+        data = _extract_json(txt)
 
-        summary = data.get("summary") or "今日の気づきを簡潔に言語化できました。"
-        advice = data.get("advice") or ["小さく始める行動を1つ決めよう","明日の自分へ一言メモを書こう"]
-        category = data.get("category") or "reflection"   # ← 返すがUIでは表示しません
-        score = int(data.get("score") or 55)
-        score = max(0, min(100, score))
+        summary  = data.get("summary") or "今日の気づきを簡潔に言語化できました。"
+        advice   = [f"💡 {a}" for a in (data.get("advice") or ["小さく始める行動を1つ決めよう","明日の自分へ一言メモを書こう"])][:2]
+        category = data.get("category") or "reflection"
+        score    = max(0, min(100, int(data.get("score") or 55)))
         followup = data.get("followup") or "もう1つだけ具体例を教えてください"
-        advice = [f"💡 {a}" for a in advice][:2]
 
-        return jsonify({
-            "summary": summary,
-            "advice": advice,
-            "category": category,  # UIで非表示
-            "score": score,
-            "followup": followup
-        })
+        return jsonify({"summary":summary,"advice":advice,"category":category,"score":score,"followup":followup})
     except Exception as e:
         logging.exception("reflect error")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error":str(e)}), 500
 
 @app.post("/weekly_report")
 def weekly_report():
