@@ -1,221 +1,45 @@
-<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Mirror Loop v0.3.6</title>
-<style>
-:root{
-  --card-w: 560px; --r:16px;
-  --glass: rgba(15,18,32,.55); --bdr: rgba(255,255,255,.08);
-  --c1:#66d3ff; --c2:#2b6fff; --bg:#0b1220; --txt:#eaf1ff;
-}
-*{box-sizing:border-box} html,body{height:100%}
-body{
-  margin:0; color:var(--txt); background:var(--bg);
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-  display:flex; align-items:center; justify-content:center; overflow:hidden;
-}
-/* 最初の“中心から”呼吸演出（戻し） */
-.bg{position:fixed; inset:0; z-index:-1; background:radial-gradient(1200px 1200px at 50% 50%, rgba(70,140,255,.20), rgba(10,18,32,0) 70%)}
-.bg::before{
-  content:""; position:absolute; inset:-15%;
-  background: radial-gradient(700px 700px at 50% 50%, rgba(100,180,255,.35), rgba(60,100,200,.10) 45%, rgba(10,18,32,0) 70%);
-  filter: blur(40px); animation:breathe 6s ease-in-out infinite; transform-origin:50% 50%;
-}
-@keyframes breathe{0%{transform:scale(.94);opacity:.75}50%{transform:scale(1.05);opacity:1}100%{transform:scale(.94);opacity:.75}}
-
-.wrap{width:min(92dvw,var(--card-w))}
-.card{
-  background:var(--glass); border:1px solid var(--bdr); border-radius:var(--r); padding:20px;
-  box-shadow:0 20px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04); backdrop-filter:blur(12px);
-}
-.title{display:flex; gap:10px; align-items:center; font-weight:700; margin-bottom:10px}
-.dot{width:12px;height:12px;border-radius:50%;background:var(--c1);box-shadow:0 0 12px var(--c1)}
-
-.hint{font-size:.92rem;color:#b9c9ee;background:rgba(255,255,255,.04);border:1px solid var(--bdr);border-radius:12px;padding:10px 12px;margin-bottom:10px}
-.hint b{color:#fff}
-
-.row{display:flex; gap:10px; align-items:center}
-.grow{flex:1}
-
-textarea{
-  width:100%; height:120px; resize:vertical; border-radius:12px; outline:none;
-  background:rgba(255,255,255,.03); color:var(--txt); border:1px solid var(--bdr); padding:14px 16px;
-}
-textarea::placeholder{color:#9fb3d9}
-
-.btn{
-  position:relative; border:none; cursor:pointer; border-radius:12px; padding:12px 14px; font-weight:700;
-  color:#06223a; background:var(--c1); box-shadow:0 6px 16px rgba(102,211,255,.35); overflow:hidden;
-  transition:transform .08s ease, box-shadow .2s ease, filter .2s ease;
-}
-.btn.alt{background:var(--c2); color:#fff; box-shadow:0 6px 16px rgba(43,111,255,.35)}
-.btn.icon{width:46px; padding:10px}
-.btn:active{transform:translateY(1px)}
-.btn:disabled{filter:saturate(.4) brightness(.8); cursor:not-allowed}
-
-/* ぼんやり常時発光 */
-.btn::before{
-  content:""; position:absolute; inset:0; pointer-events:none; border-radius:inherit;
-  background:radial-gradient(circle at center, rgba(255,255,255,.35) 0%, rgba(255,255,255,.10) 40%, transparent 70%);
-  animation:pulse 4.5s ease-in-out infinite; opacity:.55; transform:scale(.95);
-}
-@keyframes pulse{0%{opacity:.35;transform:scale(.92)}50%{opacity:.7;transform:scale(1.04)}100%{opacity:.35;transform:scale(.92)}}
-
-/* クリック波紋（ボヤッ→広がる） */
-.btn .ripple{
-  position:absolute; border-radius:9999px; transform:translate(-50%,-50%); pointer-events:none;
-  width:12px; height:12px; background:rgba(255,255,255,.55); mix-blend-mode:screen;
-  animation:ripple .6s ease-out forwards;
-}
-@keyframes ripple{from{opacity:.6; transform:translate(-50%,-50%) scale(.5)} to{opacity:0; transform:translate(-50%,-50%) scale(12)}}
-
-.result{background:rgba(255,255,255,.03); border:1px solid var(--bdr); border-radius:12px; padding:12px; min-height:56px; white-space:pre-wrap; font-family:ui-monospace,Menlo,Consolas,monospace}
-.score{height:10px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden; margin-top:6px}
-.score>i{display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--c1),var(--c2)); transition:width .35s ease}
-.small{font-size:.85rem; color:#9fb3d9; margin-top:8px}
-</style>
-</head>
-<body>
-  <div class="bg" aria-hidden="true"></div>
-  <div class="wrap">
-    <div class="card">
-      <div class="title"><span class="dot"></span>Mirror Loop v0.3.6</div>
-
-      <!-- 使い方（簡潔） -->
-      <div class="hint">
-        <b>使い方：</b> ① 上の欄に今日の一言メモ → ② <b>Reflect</b> →
-        ③ 出た助言から<b>今日の一歩</b>を決める。週末は <b>週報を作成</b> を押すだけ。
-      </div>
-
-      <div class="row">
-        <textarea id="input" class="grow" placeholder="例：今日は落ち着いて過ごせた"></textarea>
-        <button id="micBtn" class="btn icon" title="音声入力">&#127908;</button>
-      </div>
-
-      <div class="row" style="margin-top:12px">
-        <button id="reflect" class="btn grow">Reflect</button>
-        <button id="weekly"  class="btn alt grow">週報を作成</button>
-        <button id="speak"   class="btn icon" title="音声で読む">&#128266;</button>
-      </div>
-
-      <div id="result" class="result"></div>
-      <div class="score" title="感情スコア"><i id="bar"></i></div>
-      <div class="small">※ 音声入力・読み上げはChrome系ブラウザ＆HTTPSで動作します。</div>
-    </div>
-  </div>
-
+<!-- 音声読み上げ（自然なしゃべり方） -->
 <script>
-const $ = s => document.querySelector(s);
-const input = $("#input"), result = $("#result"), bar = $("#bar");
-const btnR = $("#reflect"), btnW = $("#weekly"), micBtn = $("#micBtn"), speakBtn = $("#speak");
-
-/* クリック波紋 */
-function ripple(e){
-  const r = document.createElement("span");
-  const rect = e.currentTarget.getBoundingClientRect();
-  r.className = "ripple";
-  r.style.left = (e.clientX - rect.left) + "px";
-  r.style.top  = (e.clientY - rect.top)  + "px";
-  e.currentTarget.appendChild(r);
-  setTimeout(()=>r.remove(), 650);
-}
-[btnR, btnW, micBtn, speakBtn].forEach(b => b.addEventListener("click", ripple));
-
-/* フェッチに10秒タイムアウト */
-async function withTimeout(p, ms=10000){ return await Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("タイムアウト（10秒）")), ms))]); }
-
-/* Reflect */
-btnR.addEventListener("click", async ()=>{
-  const text = input.value.trim();
-  if(!text){ input.focus(); return; }
-
-  btnR.disabled = btnW.disabled = micBtn.disabled = speakBtn.disabled = true;
-  result.textContent = "AIが考えています…";
-
-  try{
-    const res = await withTimeout(fetch("/reflect",{
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({user_input:text})
-    }));
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.error||"Server error");
-
-    // ★カテゴリはUI表示しない
-    const adv = (data.advice||[]).map(a=>"・"+a).join("\n");
-    result.textContent = `要約: ${data.summary}\n助言:\n${adv}\n次の一言: ${data.followup}`;
-
-    const s = Math.max(0, Math.min(100, +data.score||0));
-    bar.style.width = s + "%";
-
-    // 入力欄は送信後にクリア（placeholderは残す）
-    input.value = "";
-  }catch(e){
-    result.textContent = "エラー: " + (e.message||e);
-  }finally{
-    btnR.disabled = btnW.disabled = micBtn.disabled = speakBtn.disabled = false;
-  }
-});
-
-/* 週報（ダミー） */
-btnW.addEventListener("click", async ()=>{
-  btnR.disabled = btnW.disabled = micBtn.disabled = speakBtn.disabled = true;
-  result.textContent = "週報を作成中…";
-  try{
-    const res = await withTimeout(fetch("/weekly_report",{method:"POST"}));
-    const data = await res.json();
-    result.textContent = data.report||"OK";
-  }catch(e){
-    result.textContent = "エラー: " + (e.message||e);
-  }finally{
-    btnR.disabled = btnW.disabled = micBtn.disabled = speakBtn.disabled = false;
-  }
-});
-
-/* 音声入力（Web Speech API: Chrome系のみ） */
-let rec, recognizing = false;
-function ensureRecognizer(){
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SR) return null;
-  const r = new SR();
-  r.lang = "ja-JP";
-  r.interimResults = true;
-  r.continuous = false;
-  return r;
-}
-micBtn.addEventListener("click", ()=>{
-  if(recognizing && rec){ rec.stop(); return; }
-  rec = ensureRecognizer();
-  if(!rec){ alert("このブラウザは音声入力に対応していません（Chrome推奨）"); return; }
-  recognizing = true;
-  micBtn.textContent = "●"; // 録音中表示
-  rec.onresult = (ev)=>{
-    let final = "";
-    for(let i=0;i<ev.results.length;i++){
-      const res = ev.results[i];
-      if(res.isFinal) final += res[0].transcript;
-      else input.value = (input.value.replace(/\s+$/,"") + " " + res[0].transcript).trim();
-    }
-    if(final) input.value = final;
-  };
-  rec.onerror = ()=>{ recognizing=false; micBtn.textContent="🎤"; };
-  rec.onend = ()=>{ recognizing=false; micBtn.textContent="🎤"; };
-  rec.start();
-});
-
-/* 音声読み上げ（Speech Synthesis） */
 speakBtn.addEventListener("click", ()=>{
-  if(!("speechSynthesis" in window)){ alert("このブラウザは読み上げに対応していません"); return; }
-  const txt = result.textContent.trim();
+  if(!("speechSynthesis" in window)){ 
+    alert("このブラウザは読み上げに対応していません"); 
+    return; 
+  }
+
+  let txt = result.textContent.trim();
   if(!txt) return;
+
+  // 💡 記号や見出しなどを除外して自然な話し方に整形
+  txt = txt
+    .replace(/💡/g, "")
+    .replace(/要約[:：]/g, "")
+    .replace(/助言[:：]/g, "")
+    .replace(/次の一言[:：]/g, "")
+    .replace(/・/g, "、")
+    .replace(/\s+/g, " ")
+    .replace(/\n+/g, "。")
+    .replace(/[。]{2,}/g, "。");
+
+  // 読み上げ速度・ピッチを調整して自然なしゃべり
   const u = new SpeechSynthesisUtterance(txt);
   u.lang = "ja-JP";
-  u.rate = 1.0;
-  u.pitch = 1.0;
+  u.rate = 0.95;   // 少しゆっくり
+  u.pitch = 0.9;   // 落ち着いた声
+  u.volume = 1.0;
+
+  // 文ごとに少し間を空けて読む（句読点でポーズ）
+  const sentences = txt.split(/(?<=[。！？])/);
   speechSynthesis.cancel();
-  speechSynthesis.speak(u);
+  let i = 0;
+  const speakNext = ()=>{
+    if(i < sentences.length){
+      const part = new SpeechSynthesisUtterance(sentences[i]);
+      part.lang = u.lang; part.rate = u.rate; part.pitch = u.pitch; part.volume = u.volume;
+      speechSynthesis.speak(part);
+      part.onend = ()=>{ setTimeout(speakNext, 250); }; // 0.25秒間
+      i++;
+    }
+  };
+  speakNext();
 });
 </script>
-</body>
-</html>
