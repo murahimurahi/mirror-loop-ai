@@ -1,150 +1,194 @@
-import os, logging, sqlite3, datetime, json, statistics
-from flask import Flask, request, jsonify, render_template, g
+import os, json, sqlite3, datetime as dt
+from flask import Flask, request, jsonify, render_template
 from openai import OpenAI
 
+# ---------------------------------------------------------------------
+# 基本設定
+# ---------------------------------------------------------------------
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO)
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+client = OpenAI()
+MODEL = os.getenv("MODEL", "gpt-4o-mini")  # 速くて安定
+
 DB_PATH = "mirrorloop.db"
 
-def get_db():
-    db = getattr(g, "_database", None)
-    if db is None:
-        db = g._database = sqlite3.connect(DB_PATH)
-    return db
-
-@app.teardown_appcontext
-def close_connection(exception):
-    db = getattr(g, "_database", None)
-    if db is not None:
-        db.close()
-
+# ---------------------------------------------------------------------
+# DB 初期化
+# ---------------------------------------------------------------------
 def init_db():
-    with app.app_context():
-        db = get_db()
-        db.execute("""
-            CREATE TABLE IF NOT EXISTS reflections (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT,
-                date TEXT,
-                emotion TEXT,
-                score INTEGER,
-                category TEXT
-            )
-        """)
-        db.commit()
-
-def save_emotion(user_id, emotion, score, category):
-    db = get_db()
-    db.execute(
-        "INSERT INTO reflections (user_id, date, emotion, score, category) VALUES (?, ?, ?, ?, ?)",
-        (user_id, datetime.date.today().isoformat(), emotion, score, category),
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        """CREATE TABLE IF NOT EXISTS reflections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT,
+            text TEXT,
+            summary TEXT,
+            advice TEXT,
+            category TEXT,
+            score REAL,
+            followup TEXT
+        )"""
     )
-    db.commit()
+    conn.commit()
+    conn.close()
 
-def fetch_weekly(user_id):
-    db = get_db()
-    cur = db.execute(
-        "SELECT date, emotion, score FROM reflections WHERE user_id=? ORDER BY date DESC LIMIT 7",
-        (user_id,),
+init_db()
+
+# ---------------------------------------------------------------------
+# AI呼び出し設定
+# ---------------------------------------------------------------------
+SYSTEM = (
+    "You are Mirror Loop, a concise Japanese reflection coach. "
+    "Output MUST follow the JSON schema exactly. "
+    "Be brief, actionable, and empathetic."
+)
+
+JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string", "description": "一文での要約"},
+        "advice": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "具体的行動（最大3）"
+        },
+        "category": {
+            "type": "string",
+            "enum": [
+                "work", "study", "health", "family",
+                "relationship", "finance", "other"
+            ]
+        },
+        "score": {"type": "number", "minimum": 0, "maximum": 100},
+        "followup": {"type": "string", "description": "次に答えやすい質問"}
+    },
+    "required": ["summary", "advice", "category", "score", "followup"],
+    "additionalProperties": False
+}
+
+
+def call_ai(reflect_text: str) -> dict:
+    """OpenAI Responses API を利用して構造化出力を生成"""
+    prompt = f"""ユーザーの日誌:
+{reflect_text}
+
+出力は必ずJSON。以下の定義に従ってください。
+- summary: 本質を外さない一文要約（25〜60字）
+- advice: 実行可能な助言を3つ以内。動詞で始める。
+- category: work, study, health, family, relationship, finance, other のいずれか。
+- score: 感情スコア(0-100)。70=穏やか。
+- followup: 次に書きやすい一問。
+"""
+
+    resp = client.responses.create(
+        model=MODEL,
+        system=SYSTEM,
+        input=[{"role": "user", "content": prompt}],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {"name": "mirror_loop", "schema": JSON_SCHEMA},
+        },
     )
-    return cur.fetchall()
-
-def analyze_emotion(user_input):
-    prompt = f"""
-    あなたは「Mirror Loop」という短文リフレクションAIです。
-    ユーザー入力を読み取り、以下のJSONのみを出力してください。
-
-    {{
-      "emotion": "感情1〜2語",
-      "score": 数値0〜100,
-      "advice": "70文字以内の一言アドバイス",
-      "category": "healing" または "learning" または "action" または "creative",
-      "followup": "次に聞く短い質問（20文字以内）"
-    }}
-
-    ユーザー入力: 「{user_input}」
-    """
 
     try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.6,
-        )
-        return resp.choices[0].message.content
-    except Exception as e:
-        logging.error(f"OpenAI error: {e}")
-        return json.dumps({
-            "emotion": "不明",
+        data = json.loads(resp.output_parsed)
+    except Exception:
+        # モデルがスキーマを守らなかった場合のフォールバック
+        data = {
+            "summary": "解析できませんでした",
+            "advice": ["もう少し具体的に書いてみましょう"],
+            "category": "other",
             "score": 50,
-            "advice": "深呼吸でリセットしましょう。",
-            "category": "healing",
-            "followup": "今日は何が印象的でしたか？"
-        }, ensure_ascii=False)
+            "followup": "今日は何を感じましたか？"
+        }
+    return data
 
-def weekly_comment_ai(summary):
-    prompt = f"""
-    以下の1週間の感情データに基づいて短くまとめてください。
-    1) 100文字以内のまとめ
-    2) 箇条書き3つの提案
-    日本語で出力。
 
-    {json.dumps(summary, ensure_ascii=False)}
-    """
-
-    try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.6,
-        )
-        return resp.choices[0].message.content.strip()
-    except Exception as e:
-        logging.error(f"Weekly comment error: {e}")
-        return "今週のまとめ：データ解析に失敗しました。\n・短い深呼吸\n・10分散歩\n・早寝"
-
+# ---------------------------------------------------------------------
+# ルートページ
+# ---------------------------------------------------------------------
 @app.route("/")
 def index():
     return render_template("index_v36.html")
 
-@app.route("/reflect", methods=["POST"])
+
+# ---------------------------------------------------------------------
+# Reflect エンドポイント
+# ---------------------------------------------------------------------
+@app.post("/reflect")
 def reflect():
-    data = request.get_json(force=True)
-    user_input = data.get("message", "")
-    user_id = data.get("user_id", "guest")
-    ai_json = analyze_emotion(user_input)
-    try:
-        result = json.loads(ai_json)
-    except Exception:
-        result = {}
-    result = {
-        "emotion": result.get("emotion", "不明"),
-        "score": int(result.get("score", 50) or 50),
-        "advice": result.get("advice", "深呼吸でリセットしましょう。"),
-        "category": result.get("category", "healing"),
-        "followup": result.get("followup", "今日は何が印象的でしたか？"),
-    }
-    save_emotion(user_id, result["emotion"], result["score"], result["category"])
-    return jsonify(result)
+    user_input = (request.json or {}).get("user_input", "").strip()
+    if not user_input:
+        return jsonify({"error": "empty"}), 400
 
-@app.route("/weekly_report", methods=["GET"])
+    data = call_ai(user_input)
+
+    # DBに保存
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO reflections (date, text, summary, advice, category, score, followup) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            dt.date.today().isoformat(),
+            user_input,
+            data.get("summary"),
+            "\n".join(data.get("advice", [])),
+            data.get("category"),
+            data.get("score"),
+            data.get("followup"),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    return jsonify(data)
+
+
+# ---------------------------------------------------------------------
+# 週報生成
+# ---------------------------------------------------------------------
+@app.post("/weekly_report")
 def weekly_report():
-    user_id = request.args.get("user_id", "guest")
-    rows = fetch_weekly(user_id)
-    if not rows:
-        return jsonify({"summary": "まだデータがありません。"})
-    scores = [r[2] for r in rows]
-    summary = {
-        "平均スコア": round(statistics.mean(scores), 1),
-        "最高スコア": max(scores),
-        "最低スコア": min(scores),
-        "件数": len(rows),
-    }
-    comment = weekly_comment_ai(summary)
-    return jsonify({"summary": summary, "comment": comment})
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    week_ago = (dt.date.today() - dt.timedelta(days=7)).isoformat()
+    cur.execute(
+        "SELECT date, summary, score FROM reflections WHERE date >= ? ORDER BY date",
+        (week_ago,),
+    )
+    rows = cur.fetchall()
+    conn.close()
 
-init_db()
+    if not rows:
+        return jsonify({"report": "過去7日分の記録がありません。"})
+
+    avg_score = sum([r[2] or 0 for r in rows]) / len(rows)
+    summaries = "\n".join([f"{r[0]}：{r[1]}" for r in rows])
+    prompt = f"""
+以下はあなたの過去7日間の要約です：
+{summaries}
+
+平均スコア：{avg_score:.1f}
+
+上記をもとに「この一週間の総評」「改善の方向性」「次週の目標提案」を簡潔に書いてください。
+"""
+    resp = client.responses.create(
+        model=MODEL,
+        system=SYSTEM,
+        input=[{"role": "user", "content": prompt}],
+    )
+
+    text = ""
+    try:
+        text = resp.output[0].content[0].text
+    except Exception:
+        text = "週報を生成できませんでした。"
+
+    return jsonify({"report": text})
+
+
+# ---------------------------------------------------------------------
+# 実行
+# ---------------------------------------------------------------------
 if __name__ == "__main__":
-    init_db()
     app.run(host="0.0.0.0", port=5000)
