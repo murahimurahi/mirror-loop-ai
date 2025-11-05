@@ -14,7 +14,7 @@
   body{margin:0; color:var(--txt); font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
        display:flex; align-items:center; justify-content:center; background:var(--bg); overflow:hidden;}
 
-  /* 中心からの呼吸グラデ（最初のものにリターン） */
+  /* 中心からの呼吸グラデ（最初の版） */
   .bg{position:fixed; inset:0; z-index:-1; background:radial-gradient(1200px 1200px at 50% 50%, rgba(70,140,255,.20), rgba(10,18,32,0) 70%)}
   .bg::before{
     content:""; position:absolute; inset:-15%;
@@ -32,6 +32,12 @@
   }
   .title{display:flex; gap:10px; align-items:center; font-weight:700; margin-bottom:10px}
   .dot{width:12px; height:12px; border-radius:50%; background:var(--c1); box-shadow:0 0 12px var(--c1)}
+
+  .hint{
+    font-size:.92rem; color:#b9c9ee; background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 12px; margin-bottom:10px;
+  }
+  .hint b{color:#fff}
 
   textarea{
     width:100%; height:120px; resize:vertical; border-radius:12px; outline:none;
@@ -76,6 +82,12 @@
     <div class="card">
       <div class="title"><span class="dot"></span>Mirror Loop v0.3.6</div>
 
+      <!-- 使い方（簡潔） -->
+      <div class="hint">
+        <b>使い方：</b> ① 上の欄に今日の一言メモ → ② <b>Reflect</b> を押す → ③ 出た助言から<b>今日の一歩</b>を決める。
+        週末は <b>「週報を作成」</b> を押すだけ。
+      </div>
+
       <textarea id="input" placeholder="例：今日は落ち着いて過ごせた"></textarea>
 
       <div class="row">
@@ -93,7 +105,6 @@
   const input = $("#input"), result = $("#result"), bar = $("#bar");
   const btnR = $("#reflect"), btnW = $("#weekly");
 
-  // クリック波紋
   function ripple(e){
     const r = document.createElement("span");
     const rect = e.currentTarget.getBoundingClientRect();
@@ -105,7 +116,6 @@
   }
   [btnR, btnW].forEach(b => b.addEventListener("click", ripple));
 
-  // 「考え中…」は10秒で打ち切り
   async function withTimeout(p, ms=10000){ return await Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("タイムアウト（10秒）")), ms))]); }
 
   btnR.addEventListener("click", async ()=>{
@@ -124,12 +134,13 @@
       if(!res.ok) throw new Error(data.error||"Server error");
 
       const adv = (data.advice||[]).map(a=>"・"+a).join("\n");
-      result.textContent = `要約: ${data.summary}\nカテゴリ: ${data.category}\n助言:\n${adv}\n次の一言: ${data.followup}`;
+      // ★カテゴリ行は表示しない
+      result.textContent = `要約: ${data.summary}\n助言:\n${adv}\n次の一言: ${data.followup}`;
 
       const s = Math.max(0, Math.min(100, +data.score||0));
       bar.style.width = s + "%";
 
-      // 入力例は残したいので placeholder はそのまま、入力欄だけクリア
+      // 入力欄は送信後にクリア（placeholderは常に残る）
       input.value = "";
     }catch(e){
       result.textContent = "エラー: " + (e.message||e);
