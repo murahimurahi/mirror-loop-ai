@@ -5,75 +5,85 @@ from openai import OpenAI
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
-
-@app.get("/health")
-def health():
-    return "ok", 200
-
-@app.route("/")
-def index():
-    return render_template("index_v36.html")
+# 15秒で切る（「いつまで考えてるの？」対策）
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "")).with_options(timeout=15.0)
 
 def _extract_json(text: str) -> dict:
     if not text:
         return {}
+    # ```json ... ``` 優先、なければ最初の{}を拾う
     fence = re.search(r"```json\s*(\{[\s\S]*?\})\s*```", text, re.I)
-    cand = fence.group(1) if fence else re.search(r"\{[\s\S]*\}", text)
-    cand = cand.group(0) if cand else "{}"
+    cand = fence.group(1) if fence else (re.search(r"\{[\s\S]*\}", text).group(0) if re.search(r"\{[\s\S]*\}", text) else "{}")
     try:
         return json.loads(cand)
     except Exception:
+        # 末尾カンマ救済
         cand2 = re.sub(r",\s*([\}\]])", r"\1", cand)
         try:
             return json.loads(cand2)
         except Exception:
             return {}
 
+@app.get("/health")
+def health():
+    return "ok", 200
+
+@app.get("/")
+def index():
+    # UIは v36
+    return render_template("index_v36.html")
+
 @app.post("/reflect")
 def reflect():
     try:
         user_input = (request.json or {}).get("user_input", "").strip()
         if not user_input:
-            return jsonify({"error": "empty"}), 400
+            return jsonify({"error":"empty"}), 400
 
-        system_prompt = (
-            "あなたは共感的なメンタルコーチです。"
-            "ユーザーの文章から気持ち・背景・学びを丁寧に読み取り、"
-            "1行要約・2つの助言・感情カテゴリ・0〜100の心の安定スコア・"
-            "次の一歩を促す短い質問を日本語でJSON形式で返してください。\n"
-            '出力フォーマット: {"summary":"...", "advice":["...","..."], '
-            '"category":"...", "score":数値, "followup":"..."}'
+        system = (
+            "あなたは共感的なメンタルコーチ。日本語で次のJSONだけを返す。"
+            '形式: {"summary":"1行要約","advice":["助言1","助言2"],'
+            '"category":"感情カテゴリ","score":数値(0-100),"followup":"次の一言(20字以内)"}'
+            " 一度で完結させ、会話を継続させない。出力以外の文は一切書かない。"
         )
 
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0.6,
+            max_tokens=220,  # ダラダラ防止
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_input}
-            ],
-            temperature=0.65,
+                {"role":"system","content":system},
+                {"role":"user","content":user_input}
+            ]
         )
-
-        text = resp.choices[0].message.content or ""
+        text = (resp.choices[0].message.content or "").strip()
         data = _extract_json(text)
 
-        data["advice"] = [f"💡 {a}" for a in data.get("advice", [])]
-        return jsonify({
-            "summary": data.get("summary", ""),
-            "advice": data.get("advice", []),
-            "category": data.get("category", ""),
-            "score": data.get("score", 50),
-            "followup": f"🪞 {data.get('followup', 'もう少し詳しく教えてください')}"
-        })
+        # フォールバック
+        summary = data.get("summary") or "今日の気づきを簡潔に言語化できました。"
+        advice = data.get("advice") or ["小さく始める行動を1つ決めよう","明日の自分へ一言メモを書こう"]
+        category = data.get("category") or "reflection"
+        score = int(data.get("score") or 55)
+        score = max(0, min(100, score))
+        followup = data.get("followup") or "もう1つだけ具体例を教えてください"
 
+        # 表示整形
+        advice = [f"💡 {a}" for a in advice][:2]
+
+        return jsonify({
+            "summary": summary,
+            "advice": advice,
+            "category": category,
+            "score": score,
+            "followup": followup
+        })
     except Exception as e:
         logging.exception("reflect error")
         return jsonify({"error": str(e)}), 500
 
 @app.post("/weekly_report")
 def weekly_report():
-    return jsonify({"report": "週報は次リリースでDB連携予定です。"})
+    return jsonify({"report":"（次回）過去7日の入力から要約と推移を自動生成します。"})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
