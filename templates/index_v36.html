@@ -1,133 +1,173 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Mirror Loop v0.3.6</title>
 <style>
-  :root { --panel: rgba(255,255,255,.06); }
-
+  :root{
+    --card-w: 560px;
+    --radius: 16px;
+    --glass: rgba(15,18,32,.55);
+    --glass-border: rgba(255,255,255,.08);
+    --accent: #3ec7ff;
+  }
+  *{box-sizing:border-box}
   html,body{height:100%}
   body{
-    margin:0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-    background:
-      radial-gradient(1200px 1200px at 50% 40%, #1b2545, #0f1325 60%, #0a0c18 100%);
-    background-size:102% 102%;
-    animation: breathe 10s ease-in-out infinite;
+    margin:0; color:#e8eefb; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    min-height:100dvh; overflow-x:hidden;
     display:flex; align-items:center; justify-content:center;
-    color:#eaf1ff;
+    background:#0b1220;
+  }
+
+  /* === 呼吸グラデ：中心から淡く脈打つ === */
+  .bg{
+    position:fixed; inset:0; overflow:hidden; z-index:-1;
+    background: radial-gradient(1200px 1200px at 50% 50%,
+      rgba(40,120,255,.20), rgba(30,60,140,.10) 40%, rgba(10,18,32,0) 70%);
+  }
+  .bg::before{
+    content:""; position:absolute; inset:-20%;
+    background:
+      radial-gradient(600px 600px at 50% 50%,
+        rgba(70,180,255,.30), rgba(60,100,200,.08) 45%, rgba(10,18,32,0) 70%);
+    filter: blur(40px);
+    animation: breathe 6s ease-in-out infinite;
+    transform-origin:50% 50%;
   }
   @keyframes breathe{
-    0%,100%{ filter:brightness(1); background-size:102% 102%;}
-    50%   { filter:brightness(1.08); background-size:106% 106%;}
+    0%   { transform: scale(0.94); opacity:.75; }
+    50%  { transform: scale(1.04); opacity:1; }
+    100% { transform: scale(0.94); opacity:.75; }
   }
 
+  /* カードを常に中央&固定幅で */
+  .wrap{
+    width: min(92dvw, var(--card-w));
+  }
   .card{
-    width:min(520px, 92vw);
-    background:var(--panel); backdrop-filter: blur(10px);
-    border-radius:20px; padding:24px 22px; box-shadow:0 20px 60px rgba(0,0,0,.35);
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+    backdrop-filter: blur(12px);
   }
-  h1{margin:0 0 10px; font-weight:700; font-size:22px}
-  .muted{opacity:.72; font-size:13px; margin-bottom:12px}
-
+  .title{
+    display:flex; align-items:center; gap:10px; margin-bottom:10px;
+    font-weight:700; letter-spacing:.2px;
+  }
+  .title .dot{width:12px;height:12px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent)}
   textarea{
-    width:100%; height:110px; border:none; outline:0;
-    border-radius:12px; padding:12px 14px; resize:none;
-    background: rgba(255,255,255,.08); color:#fff; font-size:15px;
+    width:100%; height:120px; resize:vertical;
+    background: rgba(255,255,255,.03);
+    color:#eaf1ff; border:1px solid rgba(255,255,255,.08);
+    outline:none; border-radius:12px; padding:14px 16px;
   }
-
-  .row{display:flex; gap:10px; margin-top:12px}
-  button{
-    flex:1; border:0; border-radius:999px; padding:11px 14px; cursor:pointer;
-    color:#fff; font-weight:600; letter-spacing:.2px;
-    background:linear-gradient(135deg,#0a84ff,#34c8ff);
-    transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  textarea::placeholder{color:#9fb3d9}
+  .row{display:flex; gap:10px; margin:12px 0 6px}
+  .btn{
+    flex:1; border:none; cursor:pointer; padding:12px 14px; font-weight:600;
+    color:#0b1220; background:#66d3ff; border-radius:12px;
+    transition: transform .08s ease, box-shadow .2s ease, filter .2s ease;
+    box-shadow: 0 6px 16px rgba(62,199,255,.35);
   }
-  button.secondary{background:linear-gradient(135deg,#5b5f72,#7a819b)}
-  button:hover{ transform:translateY(-1px); box-shadow:0 6px 18px rgba(0,170,255,.25);}
-  button:active{ transform:translateY(0); opacity:.92;}
-
-  .out{margin-top:14px; background:rgba(255,255,255,.08); border-radius:12px; padding:12px; font-size:14px}
+  .btn.alt{
+    background:#2b6fff; color:#fff; box-shadow: 0 6px 16px rgba(43,111,255,.35);
+  }
+  .btn:active{ transform: translateY(1px) }
+  .result{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    background: rgba(255,255,255,.03);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:12px; padding:12px; white-space:pre-wrap; min-height:56px;
+  }
+  .score-bar{
+    height:10px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden;
+    margin-top:6px;
+  }
+  .score-bar > i{ display:block; height:100%; width:0%; background:linear-gradient(90deg,#66d3ff,#2b6fff); transition:width .4s ease }
 </style>
 </head>
 <body>
-  <div class="card">
-    <h1>💎 Mirror Loop v0.3.6</h1>
-    <p class="muted">毎日ひとこと記録。入力するとAIが要約と助言を返します。</p>
+  <div class="bg" aria-hidden="true"></div>
 
-    <textarea id="userInput" placeholder="例：今日は落ち着いて過ごせた。"></textarea>
+  <div class="wrap">
+    <div class="card">
+      <div class="title"><span class="dot"></span>Mirror Loop v0.3.6</div>
 
-    <div class="row">
-      <button id="reflectBtn">Reflect</button>
-      <button id="weeklyBtn" class="secondary">週報を作成</button>
+      <textarea id="userInput" placeholder="例：今日は落ち着いて過ごせた"></textarea>
+
+      <div class="row">
+        <button id="reflectBtn" class="btn">Reflect</button>
+        <button id="weeklyBtn" class="btn alt">週報を作成</button>
+      </div>
+
+      <div class="result" id="resultBox"></div>
+      <div class="score-bar" title="感情スコア"><i id="scoreFill"></i></div>
     </div>
-
-    <div id="output" class="out">感情スコア（進行中）</div>
   </div>
 
 <script>
-  // 入力を始めたら例文は消す（未入力で離れたら復活）
-  const input = document.getElementById('userInput');
-  input.addEventListener('focus', ()=> input.placeholder = '');
-  input.addEventListener('blur', ()=> {
-    if(!input.value.trim()) input.placeholder = '例：今日は落ち着いて過ごせた。';
+  const $ = sel => document.querySelector(sel);
+  const input = $("#userInput");
+  const resultBox = $("#resultBox");
+  const scoreFill = $("#scoreFill");
+  const reflectBtn = $("#reflectBtn");
+  const weeklyBtn  = $("#weeklyBtn");
+
+  // ■ プレースホルダーはそのまま。入力開始で消える（ブラウザ標準）
+  // もし過去にvalueで例文を入れていた場合の保険：
+  if (input.value && input.value === input.placeholder) input.value = "";
+
+  reflectBtn.addEventListener("click", async () => {
+    const text = input.value.trim();
+    if (!text) { input.focus(); return; }
+
+    reflectBtn.disabled = weeklyBtn.disabled = true;
+    resultBox.textContent = "AIが考えています…";
+
+    try{
+      const r = await fetch("/reflect", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ user_input: text })
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Server error");
+
+      // 表示
+      const adv = (data.advice || []).map(a => `・${a}`).join("\n");
+      resultBox.textContent =
+        `要約: ${data.summary}\n` +
+        `カテゴリ: ${data.category}\n` +
+        `助言:\n${adv}\n` +
+        (data.followup ? `次の一言: ${data.followup}\n` : "");
+
+      // スコアバー
+      const s = Math.max(0, Math.min(100, +data.score || 0));
+      scoreFill.style.width = s + "%";
+    }catch(e){
+      resultBox.textContent = "エラー: " + (e.message || e);
+    }finally{
+      reflectBtn.disabled = weeklyBtn.disabled = false;
+    }
   });
 
-  // /reflect 呼び出し（タイムアウトとエラーハンドリング付き）
-  async function reflect() {
-    const val = input.value.trim();
-    if(!val){ alert('内容を入力してください'); return; }
-
-    const out = document.getElementById('output');
-    out.textContent = 'AIが考えています…';
-
-    const ctrl = new AbortController();
-    const t = setTimeout(()=>ctrl.abort(), 25_000); // 25秒で打ち切り
-
+  weeklyBtn.addEventListener("click", async () => {
+    weeklyBtn.disabled = reflectBtn.disabled = true;
+    resultBox.textContent = "週報を作成中…";
     try{
-      const res = await fetch('/reflect', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ user_input: val }),
-        signal: ctrl.signal
-      });
-
-      if(!res.ok){
-        const text = await res.text();
-        out.textContent = `サーバーエラー (${res.status}) / ${text.slice(0,120)}…`;
-        return;
-      }
-      const data = await res.json();
-      if(data.error){
-        out.textContent = `エラー: ${data.error}`;
-        return;
-      }
-      out.innerHTML = `
-        <b>要約</b>：${data.summary}<br>
-        <b>助言</b>：${(data.advice||[]).join(' / ')}<br>
-        <b>カテゴリ</b>：${data.category}　<b>スコア</b>：${data.score}<br>
-        <b>次の質問</b>：${data.followup}
-      `;
+      const r = await fetch("/weekly_report", {method:"POST"});
+      const data = await r.json();
+      resultBox.textContent = data.report || "OK";
     }catch(e){
-      out.textContent = (e.name==='AbortError') ? 'タイムアウトしました（サーバー応答なし）' : `通信失敗: ${e}`;
+      resultBox.textContent = "エラー: " + (e.message || e);
     }finally{
-      clearTimeout(t);
+      weeklyBtn.disabled = reflectBtn.disabled = false;
     }
-  }
-
-  // /weekly_report は後でDB連携するので今はプレースホルダ
-  async function weekly(){
-    const out = document.getElementById('output');
-    out.textContent = '週報生成中…';
-    try{
-      const r = await fetch('/weekly_report',{method:'POST'});
-      const j = await r.json();
-      out.textContent = j.report || '準備中';
-    }catch(e){ out.textContent = '週報の生成でエラー'; }
-  }
-
-  document.getElementById('reflectBtn').onclick = reflect;
-  document.getElementById('weeklyBtn').onclick  = weekly;
+  });
 </script>
 </body>
 </html>
