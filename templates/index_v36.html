@@ -1,187 +1,154 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mirror Loop v0.3.6</title>
 <style>
   :root{
-    --card-w: 560px;
-    --radius: 16px;
-    --glass: rgba(15,18,32,.55);
-    --glass-border: rgba(255,255,255,.08);
-    --accent: #3ec7ff;
+    --card-w: 560px; --radius:16px;
+    --glass: rgba(15,18,32,.55); --glass-border: rgba(255,255,255,.08);
+    --c1:#66d3ff; --c2:#2b6fff; --bg:#0b1220; --txt:#eaf1ff;
   }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0; color:#e8eefb; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-    display:flex; align-items:center; justify-content:center;
-    background:#0b1220;
-    overflow:hidden;
-  }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0; color:var(--txt); font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+       display:flex; align-items:center; justify-content:center; background:var(--bg); overflow:hidden;}
 
-  /* === 呼吸グラデーション背景 === */
-  .bg{
-    position:fixed; inset:0; overflow:hidden; z-index:-1;
-    background: radial-gradient(1200px 1200px at 50% 50%,
-      rgba(40,120,255,.20), rgba(30,60,140,.10) 40%, rgba(10,18,32,0) 70%);
-  }
+  /* 中心からの呼吸グラデ（最初のものにリターン） */
+  .bg{position:fixed; inset:0; z-index:-1; background:radial-gradient(1200px 1200px at 50% 50%, rgba(70,140,255,.20), rgba(10,18,32,0) 70%)}
   .bg::before{
-    content:""; position:absolute; inset:-20%;
-    background: radial-gradient(600px 600px at 50% 50%,
-      rgba(70,180,255,.30), rgba(60,100,200,.08) 45%, rgba(10,18,32,0) 70%);
+    content:""; position:absolute; inset:-15%;
+    background: radial-gradient(700px 700px at 50% 50%, rgba(100,180,255,.35), rgba(60,100,200,.10) 45%, rgba(10,18,32,0) 70%);
     filter: blur(40px);
     animation: breathe 6s ease-in-out infinite;
     transform-origin:50% 50%;
   }
-  @keyframes breathe{
-    0%   { transform: scale(0.94); opacity:.75; }
-    50%  { transform: scale(1.05); opacity:1; }
-    100% { transform: scale(0.94); opacity:.75; }
-  }
+  @keyframes breathe{0%{transform:scale(.94);opacity:.75}50%{transform:scale(1.05);opacity:1}100%{transform:scale(.94);opacity:.75}}
 
-  /* === カード === */
-  .wrap{width:min(92dvw,var(--card-w));}
+  .wrap{width:min(92dvw,var(--card-w))}
   .card{
-    background: var(--glass);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius);
-    padding: 20px;
-    box-shadow: 0 20px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
-    backdrop-filter: blur(12px);
+    background:var(--glass); border:1px solid var(--glass-border); border-radius:var(--radius); padding:20px;
+    box-shadow:0 20px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04); backdrop-filter:blur(12px);
   }
-  .title{
-    display:flex; align-items:center; gap:10px; margin-bottom:10px;
-    font-weight:700; letter-spacing:.2px;
-  }
-  .title .dot{
-    width:12px;height:12px;border-radius:50%;
-    background:var(--accent);
-    box-shadow:0 0 12px var(--accent);
-  }
+  .title{display:flex; gap:10px; align-items:center; font-weight:700; margin-bottom:10px}
+  .dot{width:12px; height:12px; border-radius:50%; background:var(--c1); box-shadow:0 0 12px var(--c1)}
 
   textarea{
-    width:100%; height:120px; resize:vertical;
-    background: rgba(255,255,255,.03);
-    color:#eaf1ff; border:1px solid rgba(255,255,255,.08);
-    outline:none; border-radius:12px; padding:14px 16px;
+    width:100%; height:120px; resize:vertical; border-radius:12px; outline:none;
+    background:rgba(255,255,255,.03); color:var(--txt); border:1px solid rgba(255,255,255,.08); padding:14px 16px;
   }
   textarea::placeholder{color:#9fb3d9}
 
   .row{display:flex; gap:10px; margin:12px 0 6px}
-
-  /* === ボタン === */
   .btn{
-    flex:1; border:none; cursor:pointer;
-    padding:12px 14px; font-weight:600;
-    color:#0b1220; background:#66d3ff;
-    border-radius:12px;
-    position:relative; overflow:hidden;
-    transition: transform .08s ease, box-shadow .2s ease, filter .2s ease;
-    box-shadow: 0 6px 16px rgba(62,199,255,.35);
+    position:relative; flex:1; border:none; cursor:pointer; border-radius:12px; padding:12px 14px; font-weight:700;
+    color:#06223a; background:var(--c1); box-shadow:0 6px 16px rgba(102,211,255,.35); overflow:hidden;
+    transition:transform .08s ease, box-shadow .2s ease, filter .2s ease;
   }
-  .btn.alt{
-    background:#2b6fff; color:#fff;
-    box-shadow:0 6px 16px rgba(43,111,255,.35);
-  }
-  .btn:active{ transform:translateY(1px) }
+  .btn.alt{background:var(--c2); color:white; box-shadow:0 6px 16px rgba(43,111,255,.35)}
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{filter:saturate(.4) brightness(.8); cursor:not-allowed}
 
-  /* === ボタン呼吸アニメ === */
+  /* 常時ふわっと光る */
   .btn::before{
-    content:""; position:absolute; inset:0; border-radius:inherit;
-    background: radial-gradient(circle at center,
-      rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.08) 40%, transparent 70%);
-    opacity:0; transform:scale(0.8);
-    animation: btn-breathe 4.5s ease-in-out infinite;
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background:radial-gradient(circle at center, rgba(255,255,255,.35) 0%, rgba(255,255,255,.10) 40%, transparent 70%);
+    animation:pulse 4.5s ease-in-out infinite; opacity:.55; transform:scale(.95);
   }
-  @keyframes btn-breathe{
-    0%{opacity:0.3; transform:scale(0.9);}
-    50%{opacity:0.6; transform:scale(1.05);}
-    100%{opacity:0.3; transform:scale(0.9);}
-  }
+  @keyframes pulse{0%{opacity:.35;transform:scale(.92)}50%{opacity:.7;transform:scale(1.04)}100%{opacity:.35;transform:scale(.92)}}
 
-  .result{
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-    background: rgba(255,255,255,.03);
-    border:1px solid rgba(255,255,255,.08);
-    border-radius:12px; padding:12px; white-space:pre-wrap; min-height:56px;
+  /* クリック波紋 */
+  .btn .ripple{
+    position:absolute; border-radius:9999px; transform:translate(-50%,-50%); pointer-events:none;
+    width:12px; height:12px; background:rgba(255,255,255,.55); mix-blend-mode:screen;
+    animation:ripple .6s ease-out forwards;
   }
-  .score-bar{
-    height:10px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden;
-    margin-top:6px;
-  }
-  .score-bar>i{
-    display:block; height:100%; width:0%;
-    background:linear-gradient(90deg,#66d3ff,#2b6fff);
-    transition:width .4s ease;
-  }
+  @keyframes ripple{from{opacity:.6; transform:translate(-50%,-50%) scale(.5)} to{opacity:0; transform:translate(-50%,-50%) scale(12)}}
+
+  .result{background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px; min-height:56px; white-space:pre-wrap; font-family:ui-monospace,Menlo,Consolas,monospace}
+  .score{height:10px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden; margin-top:6px}
+  .score>i{display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--c1),var(--c2)); transition:width .35s ease}
 </style>
 </head>
 <body>
   <div class="bg" aria-hidden="true"></div>
-
   <div class="wrap">
     <div class="card">
       <div class="title"><span class="dot"></span>Mirror Loop v0.3.6</div>
 
-      <textarea id="userInput" placeholder="例：今日は落ち着いて過ごせた"></textarea>
+      <textarea id="input" placeholder="例：今日は落ち着いて過ごせた"></textarea>
 
       <div class="row">
-        <button id="reflectBtn" class="btn">Reflect</button>
-        <button id="weeklyBtn" class="btn alt">週報を作成</button>
+        <button id="reflect" class="btn">Reflect</button>
+        <button id="weekly" class="btn alt">週報を作成</button>
       </div>
 
-      <div class="result" id="resultBox"></div>
-      <div class="score-bar" title="感情スコア"><i id="scoreFill"></i></div>
+      <div id="result" class="result"></div>
+      <div class="score" title="感情スコア"><i id="bar"></i></div>
     </div>
   </div>
 
 <script>
   const $ = s => document.querySelector(s);
-  const input = $("#userInput"), resultBox = $("#resultBox"), scoreFill = $("#scoreFill");
-  const reflectBtn = $("#reflectBtn"), weeklyBtn = $("#weeklyBtn");
+  const input = $("#input"), result = $("#result"), bar = $("#bar");
+  const btnR = $("#reflect"), btnW = $("#weekly");
 
-  reflectBtn.addEventListener("click", async () => {
+  // クリック波紋
+  function ripple(e){
+    const r = document.createElement("span");
+    const rect = e.currentTarget.getBoundingClientRect();
+    r.className = "ripple";
+    r.style.left = (e.clientX - rect.left) + "px";
+    r.style.top  = (e.clientY - rect.top)  + "px";
+    e.currentTarget.appendChild(r);
+    setTimeout(()=>r.remove(), 650);
+  }
+  [btnR, btnW].forEach(b => b.addEventListener("click", ripple));
+
+  // 「考え中…」は10秒で打ち切り
+  async function withTimeout(p, ms=10000){ return await Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("タイムアウト（10秒）")), ms))]); }
+
+  btnR.addEventListener("click", async ()=>{
     const text = input.value.trim();
-    if (!text){ input.focus(); return; }
+    if(!text){ input.focus(); return; }
 
-    reflectBtn.disabled = weeklyBtn.disabled = true;
-    resultBox.textContent = "AIが考えています…";
+    btnR.disabled = btnW.disabled = true;
+    result.textContent = "AIが考えています…";
 
     try{
-      const r = await fetch("/reflect", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
+      const res = await withTimeout(fetch("/reflect",{
+        method:"POST", headers:{"Content-Type":"application/json"},
         body:JSON.stringify({user_input:text})
-      });
-      const data = await r.json();
-      if(!r.ok) throw new Error(data.error||"Server error");
+      }));
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error||"Server error");
 
-      const adv = (data.advice||[]).map(a=>`・${a}`).join("\n");
-      resultBox.textContent =
-        `要約: ${data.summary}\nカテゴリ: ${data.category}\n助言:\n${adv}\n${data.followup?`次の一言: ${data.followup}\n`:""}`;
+      const adv = (data.advice||[]).map(a=>"・"+a).join("\n");
+      result.textContent = `要約: ${data.summary}\nカテゴリ: ${data.category}\n助言:\n${adv}\n次の一言: ${data.followup}`;
 
-      const s = Math.max(0,Math.min(100,+data.score||0));
-      scoreFill.style.width = s+"%";
+      const s = Math.max(0, Math.min(100, +data.score||0));
+      bar.style.width = s + "%";
+
+      // 入力例は残したいので placeholder はそのまま、入力欄だけクリア
+      input.value = "";
     }catch(e){
-      resultBox.textContent = "エラー: "+(e.message||e);
+      result.textContent = "エラー: " + (e.message||e);
     }finally{
-      reflectBtn.disabled = weeklyBtn.disabled = false;
+      btnR.disabled = btnW.disabled = false;
     }
   });
 
-  weeklyBtn.addEventListener("click", async ()=>{
-    weeklyBtn.disabled = reflectBtn.disabled = true;
-    resultBox.textContent = "週報を作成中…";
+  btnW.addEventListener("click", async ()=>{
+    btnR.disabled = btnW.disabled = true;
+    result.textContent = "週報を作成中…";
     try{
-      const r = await fetch("/weekly_report",{method:"POST"});
-      const data = await r.json();
-      resultBox.textContent = data.report||"OK";
+      const res = await withTimeout(fetch("/weekly_report",{method:"POST"}));
+      const data = await res.json();
+      result.textContent = data.report||"OK";
     }catch(e){
-      resultBox.textContent = "エラー: "+(e.message||e);
+      result.textContent = "エラー: " + (e.message||e);
     }finally{
-      weeklyBtn.disabled = reflectBtn.disabled = false;
+      btnR.disabled = btnW.disabled = false;
     }
   });
 </script>
