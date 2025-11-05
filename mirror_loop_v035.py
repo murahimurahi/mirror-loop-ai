@@ -13,28 +13,17 @@ def health():
 
 @app.route("/")
 def index():
-    # 呼吸グラデ版のテンプレート
     return render_template("index_v36.html")
 
 def _extract_json(text: str) -> dict:
-    """
-    モデルの出力から最初のJSONブロックを安全に取り出す。
-    JSONフェンス```json ...```にも対応。
-    """
     if not text:
         return {}
-    # ```json ... ``` を優先
     fence = re.search(r"```json\s*(\{[\s\S]*?\})\s*```", text, re.I)
-    if fence:
-        cand = fence.group(1)
-    else:
-        # 最初の { ... } をローンジーに抜く
-        brace = re.search(r"\{[\s\S]*\}", text)
-        cand = brace.group(0) if brace else "{}"
+    cand = fence.group(1) if fence else re.search(r"\{[\s\S]*\}", text)
+    cand = cand.group(0) if cand else "{}"
     try:
         return json.loads(cand)
     except Exception:
-        # 軽い補正（末尾カンマ除去など）
         cand2 = re.sub(r",\s*([\}\]])", r"\1", cand)
         try:
             return json.loads(cand2)
@@ -49,32 +38,35 @@ def reflect():
             return jsonify({"error": "empty"}), 400
 
         system_prompt = (
-            "あなたは簡潔で温かいライフコーチです。"
-            "ユーザー文を要約し、感情スコア(0-100)と短い助言配列、感情カテゴリ、"
-            "次に促す一言を必ずJSONで返して。"
-            'フォーマット: {"summary":"要約","advice":["助言1","助言2"],'
-            '"category":"感情カテゴリ","score":数値,"followup":"一言"}'
+            "あなたは共感的なメンタルコーチです。"
+            "ユーザーの文章から気持ち・背景・学びを丁寧に読み取り、"
+            "1行要約・2つの助言・感情カテゴリ・0〜100の心の安定スコア・"
+            "次の一歩を促す短い質問を日本語でJSON形式で返してください。\n"
+            '出力フォーマット: {"summary":"...", "advice":["...","..."], '
+            '"category":"...", "score":数値, "followup":"..."}'
         )
 
-        # ★ Chat Completions（v1）に切替：response_formatは使わない
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_input},
+                {"role": "user", "content": user_input}
             ],
-            temperature=0.5,
+            temperature=0.65,
         )
+
         text = resp.choices[0].message.content or ""
         data = _extract_json(text)
 
+        data["advice"] = [f"💡 {a}" for a in data.get("advice", [])]
         return jsonify({
-            "summary":  data.get("summary", ""),
-            "advice":   data.get("advice", []),
+            "summary": data.get("summary", ""),
+            "advice": data.get("advice", []),
             "category": data.get("category", ""),
-            "score":    data.get("score", 50),
-            "followup": data.get("followup", "")
+            "score": data.get("score", 50),
+            "followup": f"🪞 {data.get('followup', 'もう少し詳しく教えてください')}"
         })
+
     except Exception as e:
         logging.exception("reflect error")
         return jsonify({"error": str(e)}), 500
