@@ -1,120 +1,133 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Mirror Loop v0.3.6</title>
 <style>
-body {
-  margin: 0;
-  font-family: 'Segoe UI', sans-serif;
-  height: 100vh;
-  background: radial-gradient(circle at center, #1a1f3c, #0d0f1f);
-  overflow: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  animation: breathing 12s ease-in-out infinite;
-}
-@keyframes breathing {
-  0%,100% { background-size: 100% 100%; }
-  50% { background-size: 105% 105%; }
-}
-.container {
-  width: 90%;
-  max-width: 480px;
-  background: rgba(255,255,255,0.05);
-  padding: 30px;
-  border-radius: 20px;
-  box-shadow: 0 0 40px rgba(0,0,0,0.3);
-  backdrop-filter: blur(8px);
-  color: #fff;
-  text-align: center;
-}
-h1 { font-weight: 600; margin-bottom: 15px; }
-textarea {
-  width: 100%;
-  height: 100px;
-  border: none;
-  border-radius: 10px;
-  padding: 10px;
-  resize: none;
-  font-size: 15px;
-  outline: none;
-  transition: all 0.3s;
-}
-button {
-  margin-top: 15px;
-  padding: 10px 25px;
-  border: none;
-  border-radius: 30px;
-  cursor: pointer;
-  color: white;
-  background: linear-gradient(135deg, #0066ff, #00ccff);
-  font-size: 15px;
-  font-weight: 500;
-  transition: 0.3s;
-}
-button:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 15px rgba(0,200,255,0.4);
-}
-.output {
-  margin-top: 20px;
-  text-align: left;
-  background: rgba(255,255,255,0.07);
-  border-radius: 10px;
-  padding: 15px;
-  font-size: 14px;
-}
+  :root { --panel: rgba(255,255,255,.06); }
+
+  html,body{height:100%}
+  body{
+    margin:0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background:
+      radial-gradient(1200px 1200px at 50% 40%, #1b2545, #0f1325 60%, #0a0c18 100%);
+    background-size:102% 102%;
+    animation: breathe 10s ease-in-out infinite;
+    display:flex; align-items:center; justify-content:center;
+    color:#eaf1ff;
+  }
+  @keyframes breathe{
+    0%,100%{ filter:brightness(1); background-size:102% 102%;}
+    50%   { filter:brightness(1.08); background-size:106% 106%;}
+  }
+
+  .card{
+    width:min(520px, 92vw);
+    background:var(--panel); backdrop-filter: blur(10px);
+    border-radius:20px; padding:24px 22px; box-shadow:0 20px 60px rgba(0,0,0,.35);
+  }
+  h1{margin:0 0 10px; font-weight:700; font-size:22px}
+  .muted{opacity:.72; font-size:13px; margin-bottom:12px}
+
+  textarea{
+    width:100%; height:110px; border:none; outline:0;
+    border-radius:12px; padding:12px 14px; resize:none;
+    background: rgba(255,255,255,.08); color:#fff; font-size:15px;
+  }
+
+  .row{display:flex; gap:10px; margin-top:12px}
+  button{
+    flex:1; border:0; border-radius:999px; padding:11px 14px; cursor:pointer;
+    color:#fff; font-weight:600; letter-spacing:.2px;
+    background:linear-gradient(135deg,#0a84ff,#34c8ff);
+    transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  }
+  button.secondary{background:linear-gradient(135deg,#5b5f72,#7a819b)}
+  button:hover{ transform:translateY(-1px); box-shadow:0 6px 18px rgba(0,170,255,.25);}
+  button:active{ transform:translateY(0); opacity:.92;}
+
+  .out{margin-top:14px; background:rgba(255,255,255,.08); border-radius:12px; padding:12px; font-size:14px}
 </style>
 </head>
 <body>
-<div class="container">
-  <h1>💎 Mirror Loop v0.3.6</h1>
-  <p>中心から円形の“呼吸演出”で、入力が結果に映ります。</p>
-  <textarea id="userInput" placeholder="例：今日は落ち着いて過ごせた"></textarea>
-  <br>
-  <button id="reflectBtn">Reflect</button>
-  <button id="weeklyBtn">週報を作成</button>
-  <div class="output" id="output">感情スコア（進行中）</div>
-</div>
+  <div class="card">
+    <h1>💎 Mirror Loop v0.3.6</h1>
+    <p class="muted">毎日ひとこと記録。入力するとAIが要約と助言を返します。</p>
+
+    <textarea id="userInput" placeholder="例：今日は落ち着いて過ごせた。"></textarea>
+
+    <div class="row">
+      <button id="reflectBtn">Reflect</button>
+      <button id="weeklyBtn" class="secondary">週報を作成</button>
+    </div>
+
+    <div id="output" class="out">感情スコア（進行中）</div>
+  </div>
 
 <script>
-const input = document.getElementById("userInput");
-input.addEventListener("focus", ()=> input.placeholder = "");
-input.addEventListener("blur", ()=>{
-  if(!input.value.trim()) input.placeholder = "例：今日は落ち着いて過ごせた";
-});
-
-async function reflect(){
-  const val = input.value.trim();
-  if(!val){ alert("内容を入力してください"); return; }
-  document.getElementById("output").textContent = "AIが考えています…";
-  const res = await fetch("/reflect", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({user_input: val})
+  // 入力を始めたら例文は消す（未入力で離れたら復活）
+  const input = document.getElementById('userInput');
+  input.addEventListener('focus', ()=> input.placeholder = '');
+  input.addEventListener('blur', ()=> {
+    if(!input.value.trim()) input.placeholder = '例：今日は落ち着いて過ごせた。';
   });
-  const data = await res.json();
-  document.getElementById("output").innerHTML = `
-    <strong>要約：</strong>${data.summary}<br>
-    <strong>助言：</strong>${(data.advice||[]).join(" / ")}<br>
-    <strong>カテゴリ：</strong>${data.category}<br>
-    <strong>スコア：</strong>${data.score}<br>
-    <strong>次の質問：</strong>${data.followup}
-  `;
-}
 
-async function weekly(){
-  document.getElementById("output").textContent = "週報生成中…";
-  const res = await fetch("/weekly_report",{method:"POST"});
-  const data = await res.json();
-  document.getElementById("output").textContent = data.report;
-}
+  // /reflect 呼び出し（タイムアウトとエラーハンドリング付き）
+  async function reflect() {
+    const val = input.value.trim();
+    if(!val){ alert('内容を入力してください'); return; }
 
-document.getElementById("reflectBtn").onclick = reflect;
-document.getElementById("weeklyBtn").onclick = weekly;
+    const out = document.getElementById('output');
+    out.textContent = 'AIが考えています…';
+
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>ctrl.abort(), 25_000); // 25秒で打ち切り
+
+    try{
+      const res = await fetch('/reflect', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ user_input: val }),
+        signal: ctrl.signal
+      });
+
+      if(!res.ok){
+        const text = await res.text();
+        out.textContent = `サーバーエラー (${res.status}) / ${text.slice(0,120)}…`;
+        return;
+      }
+      const data = await res.json();
+      if(data.error){
+        out.textContent = `エラー: ${data.error}`;
+        return;
+      }
+      out.innerHTML = `
+        <b>要約</b>：${data.summary}<br>
+        <b>助言</b>：${(data.advice||[]).join(' / ')}<br>
+        <b>カテゴリ</b>：${data.category}　<b>スコア</b>：${data.score}<br>
+        <b>次の質問</b>：${data.followup}
+      `;
+    }catch(e){
+      out.textContent = (e.name==='AbortError') ? 'タイムアウトしました（サーバー応答なし）' : `通信失敗: ${e}`;
+    }finally{
+      clearTimeout(t);
+    }
+  }
+
+  // /weekly_report は後でDB連携するので今はプレースホルダ
+  async function weekly(){
+    const out = document.getElementById('output');
+    out.textContent = '週報生成中…';
+    try{
+      const r = await fetch('/weekly_report',{method:'POST'});
+      const j = await r.json();
+      out.textContent = j.report || '準備中';
+    }catch(e){ out.textContent = '週報の生成でエラー'; }
+  }
+
+  document.getElementById('reflectBtn').onclick = reflect;
+  document.getElementById('weeklyBtn').onclick  = weekly;
 </script>
 </body>
 </html>
