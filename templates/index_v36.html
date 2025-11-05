@@ -16,12 +16,12 @@
   html,body{height:100%}
   body{
     margin:0; color:#e8eefb; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-    min-height:100dvh; overflow-x:hidden;
     display:flex; align-items:center; justify-content:center;
     background:#0b1220;
+    overflow:hidden;
   }
 
-  /* === 呼吸グラデ：中心から淡く脈打つ === */
+  /* === 呼吸グラデーション背景 === */
   .bg{
     position:fixed; inset:0; overflow:hidden; z-index:-1;
     background: radial-gradient(1200px 1200px at 50% 50%,
@@ -29,23 +29,20 @@
   }
   .bg::before{
     content:""; position:absolute; inset:-20%;
-    background:
-      radial-gradient(600px 600px at 50% 50%,
-        rgba(70,180,255,.30), rgba(60,100,200,.08) 45%, rgba(10,18,32,0) 70%);
+    background: radial-gradient(600px 600px at 50% 50%,
+      rgba(70,180,255,.30), rgba(60,100,200,.08) 45%, rgba(10,18,32,0) 70%);
     filter: blur(40px);
     animation: breathe 6s ease-in-out infinite;
     transform-origin:50% 50%;
   }
   @keyframes breathe{
     0%   { transform: scale(0.94); opacity:.75; }
-    50%  { transform: scale(1.04); opacity:1; }
+    50%  { transform: scale(1.05); opacity:1; }
     100% { transform: scale(0.94); opacity:.75; }
   }
 
-  /* カードを常に中央&固定幅で */
-  .wrap{
-    width: min(92dvw, var(--card-w));
-  }
+  /* === カード === */
+  .wrap{width:min(92dvw,var(--card-w));}
   .card{
     background: var(--glass);
     border: 1px solid var(--glass-border);
@@ -58,7 +55,12 @@
     display:flex; align-items:center; gap:10px; margin-bottom:10px;
     font-weight:700; letter-spacing:.2px;
   }
-  .title .dot{width:12px;height:12px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+  .title .dot{
+    width:12px;height:12px;border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 12px var(--accent);
+  }
+
   textarea{
     width:100%; height:120px; resize:vertical;
     background: rgba(255,255,255,.03);
@@ -66,17 +68,39 @@
     outline:none; border-radius:12px; padding:14px 16px;
   }
   textarea::placeholder{color:#9fb3d9}
+
   .row{display:flex; gap:10px; margin:12px 0 6px}
+
+  /* === ボタン === */
   .btn{
-    flex:1; border:none; cursor:pointer; padding:12px 14px; font-weight:600;
-    color:#0b1220; background:#66d3ff; border-radius:12px;
+    flex:1; border:none; cursor:pointer;
+    padding:12px 14px; font-weight:600;
+    color:#0b1220; background:#66d3ff;
+    border-radius:12px;
+    position:relative; overflow:hidden;
     transition: transform .08s ease, box-shadow .2s ease, filter .2s ease;
     box-shadow: 0 6px 16px rgba(62,199,255,.35);
   }
   .btn.alt{
-    background:#2b6fff; color:#fff; box-shadow: 0 6px 16px rgba(43,111,255,.35);
+    background:#2b6fff; color:#fff;
+    box-shadow:0 6px 16px rgba(43,111,255,.35);
   }
-  .btn:active{ transform: translateY(1px) }
+  .btn:active{ transform:translateY(1px) }
+
+  /* === ボタン呼吸アニメ === */
+  .btn::before{
+    content:""; position:absolute; inset:0; border-radius:inherit;
+    background: radial-gradient(circle at center,
+      rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.08) 40%, transparent 70%);
+    opacity:0; transform:scale(0.8);
+    animation: btn-breathe 4.5s ease-in-out infinite;
+  }
+  @keyframes btn-breathe{
+    0%{opacity:0.3; transform:scale(0.9);}
+    50%{opacity:0.6; transform:scale(1.05);}
+    100%{opacity:0.3; transform:scale(0.9);}
+  }
+
   .result{
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
     background: rgba(255,255,255,.03);
@@ -87,7 +111,11 @@
     height:10px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden;
     margin-top:6px;
   }
-  .score-bar > i{ display:block; height:100%; width:0%; background:linear-gradient(90deg,#66d3ff,#2b6fff); transition:width .4s ease }
+  .score-bar>i{
+    display:block; height:100%; width:0%;
+    background:linear-gradient(90deg,#66d3ff,#2b6fff);
+    transition:width .4s ease;
+  }
 </style>
 </head>
 <body>
@@ -110,20 +138,13 @@
   </div>
 
 <script>
-  const $ = sel => document.querySelector(sel);
-  const input = $("#userInput");
-  const resultBox = $("#resultBox");
-  const scoreFill = $("#scoreFill");
-  const reflectBtn = $("#reflectBtn");
-  const weeklyBtn  = $("#weeklyBtn");
-
-  // ■ プレースホルダーはそのまま。入力開始で消える（ブラウザ標準）
-  // もし過去にvalueで例文を入れていた場合の保険：
-  if (input.value && input.value === input.placeholder) input.value = "";
+  const $ = s => document.querySelector(s);
+  const input = $("#userInput"), resultBox = $("#resultBox"), scoreFill = $("#scoreFill");
+  const reflectBtn = $("#reflectBtn"), weeklyBtn = $("#weeklyBtn");
 
   reflectBtn.addEventListener("click", async () => {
     const text = input.value.trim();
-    if (!text) { input.focus(); return; }
+    if (!text){ input.focus(); return; }
 
     reflectBtn.disabled = weeklyBtn.disabled = true;
     resultBox.textContent = "AIが考えています…";
@@ -132,38 +153,33 @@
       const r = await fetch("/reflect", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ user_input: text })
+        body:JSON.stringify({user_input:text})
       });
       const data = await r.json();
-      if (!r.ok) throw new Error(data.error || "Server error");
+      if(!r.ok) throw new Error(data.error||"Server error");
 
-      // 表示
-      const adv = (data.advice || []).map(a => `・${a}`).join("\n");
+      const adv = (data.advice||[]).map(a=>`・${a}`).join("\n");
       resultBox.textContent =
-        `要約: ${data.summary}\n` +
-        `カテゴリ: ${data.category}\n` +
-        `助言:\n${adv}\n` +
-        (data.followup ? `次の一言: ${data.followup}\n` : "");
+        `要約: ${data.summary}\nカテゴリ: ${data.category}\n助言:\n${adv}\n${data.followup?`次の一言: ${data.followup}\n`:""}`;
 
-      // スコアバー
-      const s = Math.max(0, Math.min(100, +data.score || 0));
-      scoreFill.style.width = s + "%";
+      const s = Math.max(0,Math.min(100,+data.score||0));
+      scoreFill.style.width = s+"%";
     }catch(e){
-      resultBox.textContent = "エラー: " + (e.message || e);
+      resultBox.textContent = "エラー: "+(e.message||e);
     }finally{
       reflectBtn.disabled = weeklyBtn.disabled = false;
     }
   });
 
-  weeklyBtn.addEventListener("click", async () => {
+  weeklyBtn.addEventListener("click", async ()=>{
     weeklyBtn.disabled = reflectBtn.disabled = true;
     resultBox.textContent = "週報を作成中…";
     try{
-      const r = await fetch("/weekly_report", {method:"POST"});
+      const r = await fetch("/weekly_report",{method:"POST"});
       const data = await r.json();
-      resultBox.textContent = data.report || "OK";
+      resultBox.textContent = data.report||"OK";
     }catch(e){
-      resultBox.textContent = "エラー: " + (e.message || e);
+      resultBox.textContent = "エラー: "+(e.message||e);
     }finally{
       weeklyBtn.disabled = reflectBtn.disabled = false;
     }
