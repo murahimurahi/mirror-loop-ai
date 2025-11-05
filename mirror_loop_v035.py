@@ -5,19 +5,16 @@ from openai import OpenAI
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# 15秒で切る（「いつまで考えてるの？」対策）
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "")).with_options(timeout=15.0)
 
 def _extract_json(text: str) -> dict:
     if not text:
         return {}
-    # ```json ... ``` 優先、なければ最初の{}を拾う
     fence = re.search(r"```json\s*(\{[\s\S]*?\})\s*```", text, re.I)
     cand = fence.group(1) if fence else (re.search(r"\{[\s\S]*\}", text).group(0) if re.search(r"\{[\s\S]*\}", text) else "{}")
     try:
         return json.loads(cand)
     except Exception:
-        # 末尾カンマ救済
         cand2 = re.sub(r",\s*([\}\]])", r"\1", cand)
         try:
             return json.loads(cand2)
@@ -30,7 +27,6 @@ def health():
 
 @app.get("/")
 def index():
-    # UIは v36
     return render_template("index_v36.html")
 
 @app.post("/reflect")
@@ -50,7 +46,7 @@ def reflect():
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             temperature=0.6,
-            max_tokens=220,  # ダラダラ防止
+            max_tokens=220,
             messages=[
                 {"role":"system","content":system},
                 {"role":"user","content":user_input}
@@ -59,21 +55,18 @@ def reflect():
         text = (resp.choices[0].message.content or "").strip()
         data = _extract_json(text)
 
-        # フォールバック
         summary = data.get("summary") or "今日の気づきを簡潔に言語化できました。"
         advice = data.get("advice") or ["小さく始める行動を1つ決めよう","明日の自分へ一言メモを書こう"]
-        category = data.get("category") or "reflection"
+        category = data.get("category") or "reflection"   # ← 返すがUIでは表示しません
         score = int(data.get("score") or 55)
         score = max(0, min(100, score))
         followup = data.get("followup") or "もう1つだけ具体例を教えてください"
-
-        # 表示整形
         advice = [f"💡 {a}" for a in advice][:2]
 
         return jsonify({
             "summary": summary,
             "advice": advice,
-            "category": category,
+            "category": category,  # UIで非表示
             "score": score,
             "followup": followup
         })
