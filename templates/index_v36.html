@@ -1,146 +1,120 @@
-<!DOCTYPE html><html lang="ja" data-theme="dark"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mirror Loop v0.3.6</title>
 <style>
-:root{--bg1:#0b1220;--bg2:#0f172a;--fg:#e5e7eb;--muted:#94a3b8;--accent:#22d3ee;--accent2:#60a5fa;--card:#0c1323;--ok:#34d399}
-[data-theme="light"]{--bg1:#f8fafc;--bg2:#eef2ff;--fg:#0f172a;--muted:#475569;--accent:#0284c7;--accent2:#7c3aed;--card:#fff}
-
-*{box-sizing:border-box} body{margin:0;min-height:100dvh;color:var(--fg);background:linear-gradient(135deg,var(--bg1),var(--bg2));overflow-x:hidden}
-
-/* —— 中心から円で広がる“呼吸”レイヤ —— */
-.breathe, .breathe::before{position:fixed;inset:0;pointer-events:none}
-.breathe::before{
-  content:"";
-  background:
-    radial-gradient(circle at 50% 50%,
-      rgba(96,165,250,.20) 0%,
-      rgba(34,211,238,.14) 22%,
-      rgba(124,58,237,.10) 46%,
-      rgba(2,8,23,0) 62%);
-  transform:scale(1); transform-origin:50% 50%;
-  animation:breathe 12s ease-in-out infinite, drift 60s linear infinite;
-  filter:saturate(1.1);
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  height: 100vh;
+  background: radial-gradient(circle at center, #1a1f3c, #0d0f1f);
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: breathing 12s ease-in-out infinite;
 }
-@keyframes breathe{
-  0%,100%{transform:scale(0.95)}
-  50%{transform:scale(1.12)}
+@keyframes breathing {
+  0%,100% { background-size: 100% 100%; }
+  50% { background-size: 105% 105%; }
 }
-@keyframes drift{
-  0%{opacity:.9} 50%{opacity:.75} 100%{opacity:.9}
+.container {
+  width: 90%;
+  max-width: 480px;
+  background: rgba(255,255,255,0.05);
+  padding: 30px;
+  border-radius: 20px;
+  box-shadow: 0 0 40px rgba(0,0,0,0.3);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  text-align: center;
 }
-
-/* UI */
-.wrap{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:28px}
-.card{background:color-mix(in oklab,var(--card)90%,transparent);
-  border:1px solid color-mix(in oklab,var(--fg)12%,transparent);
-  backdrop-filter:blur(6px);border-radius:18px;padding:22px;
-  box-shadow:0 18px 60px rgba(0,0,0,.28)}
-h1{margin:4px 0 10px;font-size:clamp(22px,2.4vw,28px)}
-.sub{color:var(--muted);font-size:14px;margin-bottom:14px}
-
-/* 入力：“見本”を常時表示するゴースト・プレースホルダ */
-.inputwrap{position:relative}
-.inputwrap::before{
-  content:"例：今日は落ち着いて過ごせた";
-  position:absolute; left:14px; top:12px; pointer-events:none;
-  color:color-mix(in oklab,var(--muted)85%,transparent);
-  font-size:13px; letter-spacing:.2px;
+h1 { font-weight: 600; margin-bottom: 15px; }
+textarea {
+  width: 100%;
+  height: 100px;
+  border: none;
+  border-radius: 10px;
+  padding: 10px;
+  resize: none;
+  font-size: 15px;
+  outline: none;
+  transition: all 0.3s;
 }
-textarea{width:100%;min-height:84px;color:var(--fg);background:transparent;
-  border:1px solid color-mix(in oklab,var(--fg)14%,transparent);
-  border-radius:14px;padding:14px;resize:vertical;outline:none}
-textarea:focus{
-  border-color:color-mix(in oklab,var(--accent)70%,var(--fg)30%);
-  box-shadow:0 0 0 3px color-mix(in oklab,var(--accent)20%,transparent)
+button {
+  margin-top: 15px;
+  padding: 10px 25px;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  color: white;
+  background: linear-gradient(135deg, #0066ff, #00ccff);
+  font-size: 15px;
+  font-weight: 500;
+  transition: 0.3s;
 }
-.hint{color:var(--muted);font-size:12px;margin-top:6px}
-
-/* ボタン + クリック波紋 */
-.btn{position:relative;overflow:hidden;cursor:pointer;user-select:none;
-  color:#0b1220;font-weight:700;padding:11px 16px;border:none;border-radius:12px;min-width:112px;
-  background:linear-gradient(180deg,var(--accent),var(--accent2));
-  box-shadow:0 10px 26px color-mix(in oklab,var(--accent)35%,transparent);
-  transition:transform .06s, filter .2s}
-.btn:hover{filter:brightness(1.06)} .btn:active{transform:translateY(1px) scale(.98)}
-.btn.secondary{color:var(--fg);background:linear-gradient(180deg,transparent,transparent);
-  border:1px solid color-mix(in oklab,var(--fg)16%,transparent);box-shadow:none}
-.ripple{position:absolute;inset:auto; border-radius:50%; pointer-events:none; width:16px;height:16px;
-  background:rgba(255,255,255,.6);mix-blend-mode:screen; transform:translate(-50%,-50%) scale(0);
-  animation:ripple .85s ease-out forwards}
-@keyframes ripple{to{opacity:0; transform:translate(-50%,-50%) scale(14)}}
-
-.kpi{color:var(--muted);font-size:13px;margin:10px 0 2px}
-.bar{height:10px;background:color-mix(in oklab,var(--fg)12%,transparent);border-radius:999px;overflow:hidden}
-.bar>i{display:block;height:100%;width:18%;background:linear-gradient(90deg,var(--ok),var(--accent))}
-
-.log{margin-top:14px;padding:14px;border-radius:12px;
-  background:color-mix(in oklab,var(--card)90%,transparent);
-  border:1px solid color-mix(in oklab,var(--fg)12%,transparent);white-space:pre-wrap;max-height:52dvh;overflow:auto}
+button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(0,200,255,0.4);
+}
+.output {
+  margin-top: 20px;
+  text-align: left;
+  background: rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 15px;
+  font-size: 14px;
+}
 </style>
 </head>
 <body>
-<div class="breathe" aria-hidden="true"></div>
-
-<div class="wrap">
-  <div class="card">
-    <h1>💎 Mirror Loop v0.3.6</h1>
-    <div class="sub">中心から円形の“呼吸波紋”。入力例は常に表示されます。</div>
-
-    <div class="inputwrap">
-      <textarea id="userInput"></textarea>
-    </div>
-    <div class="hint">Enterで送信。送信後も入力は残します。</div>
-
-    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-      <button id="reflectBtn" class="btn">Reflect</button>
-      <button id="weeklyBtn" class="btn secondary">週報を作成</button>
-    </div>
-
-    <div class="kpi">感情スコア（過去7日）</div>
-    <div class="bar"><i id="scoreFill"></i></div>
-
-    <div id="log" class="log">ここに結果が表示されます。</div>
-  </div>
+<div class="container">
+  <h1>💎 Mirror Loop v0.3.6</h1>
+  <p>中心から円形の“呼吸演出”で、入力が結果に映ります。</p>
+  <textarea id="userInput" placeholder="例：今日は落ち着いて過ごせた"></textarea>
+  <br>
+  <button id="reflectBtn">Reflect</button>
+  <button id="weeklyBtn">週報を作成</button>
+  <div class="output" id="output">感情スコア（進行中）</div>
 </div>
 
 <script>
-function attachRipple(el){
-  el.addEventListener('click',e=>{
-    const old=el.querySelector('.ripple'); if(old) old.remove();
-    const r=document.createElement('span'); r.className='ripple';
-    const rect=el.getBoundingClientRect();
-    r.style.left=(e.clientX-rect.left)+'px'; r.style.top=(e.clientY-rect.top)+'px';
-    el.appendChild(r); r.addEventListener('animationend',()=>r.remove());
+const input = document.getElementById("userInput");
+input.addEventListener("focus", ()=> input.placeholder = "");
+input.addEventListener("blur", ()=>{
+  if(!input.value.trim()) input.placeholder = "例：今日は落ち着いて過ごせた";
+});
+
+async function reflect(){
+  const val = input.value.trim();
+  if(!val){ alert("内容を入力してください"); return; }
+  document.getElementById("output").textContent = "AIが考えています…";
+  const res = await fetch("/reflect", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({user_input: val})
   });
+  const data = await res.json();
+  document.getElementById("output").innerHTML = `
+    <strong>要約：</strong>${data.summary}<br>
+    <strong>助言：</strong>${(data.advice||[]).join(" / ")}<br>
+    <strong>カテゴリ：</strong>${data.category}<br>
+    <strong>スコア：</strong>${data.score}<br>
+    <strong>次の質問：</strong>${data.followup}
+  `;
 }
-document.querySelectorAll('.btn').forEach(attachRipple);
 
-const input=document.getElementById('userInput');
-const log=document.getElementById('log');
-const fill=document.getElementById('scoreFill');
-
-const postJSON=async(u,b)=>{const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
-  if(!r.ok) throw new Error(await r.text()); return r.json();};
-
-async function doReflect(){
-  const t=input.value.trim(); if(!t){input.focus();return;}
-  const btn=document.getElementById('reflectBtn'); btn.disabled=true;
-  try{
-    const d=await postJSON('/reflect',{user_input:t});
-    // AIの構造化出力に沿って表示
-    const s=d.summary??d.result??''; const adv=(d.advice||[]).map(x=>'・'+x).join('\n');
-    const q=d.followup?('\nQ: '+d.followup):'';
-    log.textContent=`【要約】${s}\n【助言】\n${adv}\n【カテゴリ】${d.category||'-'}  【スコア】${d.score ?? '-'}${q}`;
-    fill.style.width=(Math.min(100,Math.max(0,Number(d.score)||0))+'%');
-    // ※入力は消さない
-  }catch(err){log.textContent='⚠️ '+(err.message||err)}
-  finally{btn.disabled=false}
+async function weekly(){
+  document.getElementById("output").textContent = "週報生成中…";
+  const res = await fetch("/weekly_report",{method:"POST"});
+  const data = await res.json();
+  document.getElementById("output").textContent = data.report;
 }
-document.getElementById('reflectBtn').onclick=doReflect;
-document.getElementById('weeklyBtn').onclick=async()=>{
-  const d=await postJSON('/weekly_report',{user_input:(input.value||'')});
-  log.textContent=d.report||JSON.stringify(d);
-};
-document.addEventListener('keydown',e=>{if(e.key==='Enter'&&!(e.metaKey||e.ctrlKey||e.shiftKey)){e.preventDefault();doReflect();}});
+
+document.getElementById("reflectBtn").onclick = reflect;
+document.getElementById("weeklyBtn").onclick = weekly;
 </script>
-</body></html>
+</body>
+</html>
