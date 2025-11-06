@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Mirror Loop v0.3.9</title>
 <style>
 :root{ --panel: rgba(18,26,44,.6); --ink:#eaf7ff; --muted:#9db5c9; --accent:#00b7ff; }
@@ -52,9 +52,9 @@ input::placeholder{color:#8aa0b3;}
 <body>
   <div class="card">
     <h1>💎 Mirror Loop v0.3.9</h1>
-    <div class="hint">例文にカーソルを置くと消えます。Reflect後は入力欄を自動クリア。</div>
+    <div class="hint">入力欄は Reflect 後に自動クリア／例文はフォーカスで消えます</div>
 
-    <input id="userInput" placeholder="例：今日は落ち着いて過ごせた" autocomplete="off" />
+    <input id="userInput" placeholder="例：今日は落ち着いて過ごせた" autocomplete="off"/>
 
     <div class="row" style="margin-top:10px;">
       <button id="reflectBtn" class="btn">Reflect</button>
@@ -63,7 +63,7 @@ input::placeholder{color:#8aa0b3;}
     </div>
 
     <div id="result" class="result">
-      <!-- ラベルは出さず、3ブロックのみ表示 -->
+      <!-- ラベルを表示しない。3ブロックだけ -->
       <div id="b1" class="block"></div>
       <div class="sep"></div>
       <div id="b2" class="block"></div>
@@ -82,36 +82,28 @@ const speakBtn = $("#speakBtn");
 const micBtn = $("#micBtn");
 const b1=$("#b1"), b2=$("#b2"), b3=$("#b3");
 
+// 例文の消し方／Reflect後の自動クリア
 input.addEventListener("focus", ()=> input.placeholder="");
 input.addEventListener("blur", ()=>{ if(!input.value) input.placeholder="例：今日は落ち着いて過ごせた"; });
 
-// 文字列クリーニング：行頭の番号/ラベル/記号を除外（読み上げ＆表示の両方で使用）
+// —— 表示＆読み上げのクリーニング（行頭番号/ラベル/記号を排除）——
 function cleanLineStarts(t){
   if(!t) return "";
-  // 1. / １． / (1) / 1) を行頭から除去
-  t = t.replace(/^\s*[\d０-９]+[\.\)．]\s*|\s*^\(\s*[\d０-９]+\s*\)\s*/gm, "");
-  // ラベル語
-  t = t.replace(/^(要約|助言|次の一言|カテゴリ)\s*[:：]\s*/gm, "");
-  // 箇条書き記号
-  t = t.replace(/^\s*[・\-＊*•●◆■◉▶▷➤→]\s*/gm, "");
-  // 絵文字・装飾記号（代表的）
-  t = t.replace(/[💡⭐️✨🔥✅▶️➤→•●◆■◉※★☆◎○●▲△■□◆◇▶▷➤➔➜]/g, "");
+  t = t.replace(/^\s*(?:\(?\s*[\d０-９]+\s*\)?[\.．\)]\s*)/gm, "");   // 1. / １． / 1) / (1)
+  t = t.replace(/^(要約|助言|次の一言|カテゴリ)\s*[:：]\s*/gm, ""); // ラベル
+  t = t.replace(/^\s*[・\-＊*•●◆■◉▶▷➤→]\s*/gm, "");              // 箇条記号
+  t = t.replace(/[💡⭐️✨🔥✅▶️➤→•●◆■◉※★☆◎○●▲△■□◆◇▶▷➤➔➜]/g, ""); // 装飾
   return t.trim();
 }
-
-// 画面表示（ラベル無し）
 function renderReply(obj){
   const s = cleanLineStarts(obj?.summary||"");
-  const a = cleanLineStarts(obj?.advice||"");
-  const n = cleanLineStarts(obj?.next||"");
-  b1.textContent = s;
-  b2.textContent = a;
-  b3.textContent = n;
-  // 読み上げ用本文を保持
+  const a = cleanLineStarts(obj?.advice ||"");
+  const n = cleanLineStarts(obj?.next   ||"");
+  b1.textContent = s; b2.textContent = a; b3.textContent = n;
   document.body.dataset.tts = [s,a,n].filter(Boolean).join("。");
 }
 
-// Reflect
+// —— Reflect 実行 —— 
 reflectBtn.addEventListener("click", async ()=>{
   const text = input.value.trim();
   if(!text){ alert("入力してください"); return; }
@@ -126,7 +118,7 @@ reflectBtn.addEventListener("click", async ()=>{
   finally{ reflectBtn.disabled=false; }
 });
 
-// 音声入力（Chrome）
+// —— 音声入力（Chrome/SpeechRecognition）——
 let recognition;
 if('webkitSpeechRecognition' in window){
   recognition = new webkitSpeechRecognition();
@@ -142,26 +134,17 @@ if('webkitSpeechRecognition' in window){
   micBtn.disabled = true; micBtn.textContent = "🎤 非対応";
 }
 
-// 若い男性寄りのボイス選択（環境により名称差異あり）
+// —— 読み上げ（若い男性寄り）——
 function pickYoungMaleVoice(){
   const vs = speechSynthesis.getVoices();
-  // 男性っぽい日本語ボイス候補
-  const prefer = [
-    "Ichiro","Takumi","Daichi","Kouta","Tarou","Hattori",
-    "Google 日本語","Google 日本語（日本）","Japanese"
-  ];
-  // 1) 名前で優先
-  for(const name of prefer){
-    const hit = vs.find(v => (v.name||"").includes(name));
-    if(hit) return hit;
+  const prefer = ["Ichiro","Takumi","Daichi","Kouta","Tarou","Google 日本語","Japanese"];
+  for(const n of prefer){
+    const v = vs.find(x => (x.name||"").includes(n));
+    if(v) return v;
   }
-  // 2) 日本語の中から男性っぽい名前
   const jp = vs.filter(v => v.lang==="ja-JP" || (v.name||"").includes("日本語") || (v.name||"").includes("Japanese"));
-  if(jp.length) return jp[0];
-  return vs[0] || null;
+  return jp[0] || vs[0] || null;
 }
-
-// 読み上げ（若い男性寄り：やや低め・少し速め、抑揚あり）
 speakBtn.addEventListener("click", ()=>{
   const text = cleanLineStarts(document.body.dataset.tts||"");
   if(!text){ alert("読み上げる内容がありません"); return; }
@@ -169,23 +152,19 @@ speakBtn.addEventListener("click", ()=>{
 
   speechSynthesis.cancel();
   const sentences = text.split(/(?<=[。！？!?])/).filter(Boolean);
-
-  const base = { lang:"ja-JP", rate:1.03, pitch:0.92, volume:1.0 }; // 若い男性寄り
   const voice = pickYoungMaleVoice();
 
   let i=0;
   const speakNext = ()=>{
     if(i>=sentences.length) return;
     const u = new SpeechSynthesisUtterance(sentences[i]);
-    Object.assign(u, base);
+    u.lang="ja-JP"; u.rate=1.03; u.pitch=0.92; u.volume=1.0; // 若い男性寄り
     if(voice) u.voice = voice;
-    // ほんのり抑揚
     if(/(よね|だね|かな|かも)/.test(sentences[i])) u.pitch = 1.0;
-    if(/(大丈夫|安心|ゆっくり|落ち着)/.test(sentences[i])) u.rate = 0.97;
+    if(/(大丈夫|安心|ゆっくり|落ち着)/.test(sentences[i])) u.rate  = 0.97;
     speechSynthesis.speak(u);
     u.onend = ()=> setTimeout(()=>{ i++; speakNext(); }, 240);
   };
-  // 一部環境では getVoices() 非同期更新のため遅延開始
   if(speechSynthesis.getVoices().length===0){
     window.speechSynthesis.onvoiceschanged = ()=>speakNext();
   }else{
