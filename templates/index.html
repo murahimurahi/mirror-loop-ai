@@ -37,6 +37,7 @@ textarea{min-height:70px;resize:vertical;}
 .entry-date{color:#a9bcd4;font-size:.85rem;}
 .entry-text{white-space:pre-wrap;margin-top:4px;}
 .summaryBox{background:rgba(255,255,255,.08);padding:10px;border-radius:10px;margin-top:12px;font-size:.95rem;}
+.usage{width:min(96vw,780px);background:rgba(255,255,255,.06);border-radius:12px;padding:16px;margin:8px 0 24px;color:#d8e6ff;font-size:.95rem;line-height:1.7}
 
 .mic.listening{box-shadow:0 0 18px rgba(255,120,120,.6); animation:pulse 1s infinite;}
 @keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.04)}100%{transform:scale(1)}}
@@ -47,6 +48,16 @@ canvas{background:rgba(255,255,255,.03);border-radius:12px;padding:8px}
 <div class="catch">
   <h1>モヤっとしたままで心がぐちゃぐちゃだと前に進めない。</h1>
   <p>AIに心の中を整理してもらい、スッキリしましょう。これは「心を映すAI日記アプリ」です。</p>
+</div>
+
+<!-- 📝 使い方（復活） -->
+<div class="usage">
+  <strong>使い方</strong><br>
+  1) テキスト欄に今日の出来事や気持ちを自由につぶやく<br>
+  2) <em>Reflect</em> を押すと、あなたの言葉だけを材料に「一人称の要約＋行動のヒント」が返ります（自動保存）<br>
+  3) 1日の終わりに <em>今日のまとめ</em> を押すと、当日のつぶやきをAIが「一人称で要約＋明日のアドバイス」にまとめます<br>
+  4) <em>まとめを朗読</em> を押すと、要約（または最新メモ）を音声で再生します<br>
+  5) 右側に直近7日の気分スコアをグラフ表示。音声入力ボタンから話して記録もOK（Chrome/Edge）
 </div>
 
 <div class="card">
@@ -96,7 +107,6 @@ const moodTagsEl=document.getElementById("moodTags");
 const ttsAudio=document.getElementById("ttsAudio");
 
 function escapeHtml(s){return (s||"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
-
 function renderDiary(){
   const db=load(); entriesEl.innerHTML="";
   Object.keys(db).sort().reverse().forEach(date=>{
@@ -109,7 +119,7 @@ function renderDiary(){
   });
 }
 
-let chart;
+let chart; // ← ★ 重複宣言を排除（これ1回だけ）
 function renderChart(){
   const db=load(); const dates=Object.keys(db).sort().slice(-7);
   const data=dates.map(d=> (db[d].mood && db[d].mood.score!=null) ? db[d].mood.score : null);
@@ -132,19 +142,23 @@ function cleanLine(t){
   return t.trim();
 }
 
-// Reflect：ユーザー視点での要約＋行動提案
+// Reflect（復活）
 reflectBtn.onclick=async()=>{
   const text=userInput.value.trim(); if(!text) return alert("入力してください");
   result.textContent="考えています…";
-  const r=await fetch("/reflect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user_input:text})});
-  const data=await r.json();
-  if(!data.reply){result.textContent="エラー";return;}
-  const {summary,advice,next}=data.reply;
-  const msg=`${summary}\n${advice}\n${next}`;
-  result.textContent=msg; pushLog(today(), msg); userInput.value=""; renderDiary();
+  try{
+    const r=await fetch("/reflect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user_input:text})});
+    const data=await r.json();
+    if(!data.reply){result.textContent="エラー";return;}
+    const {summary,advice,next}=data.reply;
+    const msg=`${summary}\n${advice}\n${next}`;
+    result.textContent=msg; pushLog(today(), msg); userInput.value=""; renderDiary();
+  }catch(e){
+    result.textContent="通信エラー";
+  }
 };
 
-// 今日のまとめ（ユーザー視点）＋感情分析
+// 今日のまとめ＋分析
 summarizeBtn.onclick=async()=>{
   const db=load(); const date=today(); const items=(db[date]?.logs||[]);
   if(items.length===0) return alert("今日のReflectがまだありません。");
@@ -152,12 +166,9 @@ summarizeBtn.onclick=async()=>{
   const s=await fetch("/summarize",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items})}).then(r=>r.json());
   const summary=cleanLine(s.summary||""); const advice=cleanLine(s.advice||"");
   if(summary || advice) setSummaryAdvice(date, summary, advice);
-
   const a=await fetch("/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items})}).then(r=>r.json());
   if(typeof a.mood_score==="number") setMood(date,a.mood_score,a.tags||[]);
-
   renderDiary(); renderChart();
-
   if(summary || advice){
     const box=document.createElement("div"); box.className="summaryBox";
     box.innerHTML = `<strong>今日のまとめ：</strong>${escapeHtml(summary)}${advice?("<br><strong>明日のアドバイス：</strong>"+escapeHtml(advice)):""}`;
@@ -166,35 +177,30 @@ summarizeBtn.onclick=async()=>{
 };
 
 // まとめを朗読（OpenAI TTS）
-document.getElementById("readBtn").onclick=async()=>{
+readBtn.onclick=async()=>{
   const db=load(); const date=today();
   const text = (db[date]?.summary || db[date]?.logs?.slice(-1)[0] || "").toString();
   if(!text) return alert("読み上げる内容がありません。まずReflectしてください。");
-  const btn = document.getElementById("readBtn");
-  btn.disabled=true; btn.textContent="生成中…";
+  readBtn.disabled=true; readBtn.textContent="生成中…";
   const resp=await fetch("/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,voice:"alloy"})});
-  btn.disabled=false; btn.textContent="まとめを朗読";
+  readBtn.disabled=false; readBtn.textContent="まとめを朗読";
   if(!resp.ok){ return alert("音声生成エラー"); }
   const blob=await resp.blob(); const url=URL.createObjectURL(blob);
-  const audio=document.getElementById("ttsAudio"); audio.src=url;
-  try{ await audio.play(); }catch(e){ alert("ブラウザが再生をブロックしました。もう一度押してください。"); }
+  ttsAudio.src=url; try{ await ttsAudio.play(); }catch{ alert("再生がブロックされました。もう一度押してください。"); }
 };
 
 // 音声入力（Chrome/Edge）
 if("webkitSpeechRecognition" in window){
   const rec=new webkitSpeechRecognition();
   rec.lang="ja-JP"; rec.continuous=false; rec.interimResults=false;
-  const micBtn=document.getElementById("micBtn");
   micBtn.onclick=()=>{ if(micBtn.classList.contains("listening")) rec.stop(); else{ rec.start(); micBtn.classList.add("listening"); micBtn.textContent="🛑 停止"; } };
   rec.onresult=e=>{ userInput.value=e.results[0][0].transcript; };
   rec.onend=()=>{ micBtn.classList.remove("listening"); micBtn.textContent="🎤 音声入力"; };
 }else{
-  document.getElementById("micBtn").disabled=true;
-  document.getElementById("micBtn").textContent="🎤 音声入力（非対応）";
+  micBtn.disabled=true; micBtn.textContent="🎤 音声入力（非対応）";
 }
 
 // 初期表示
-let chart;
 function boot(){ renderDiary(); renderChart(); }
 boot();
 </script>
