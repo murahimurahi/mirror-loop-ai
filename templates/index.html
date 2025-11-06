@@ -7,140 +7,106 @@
 <style>
 :root{ --panel: rgba(18,26,44,.6); --ink:#eaf7ff; --muted:#9db5c9; --accent:#00b7ff; }
 html,body{height:100%;margin:0;font-family:"Noto Sans JP",system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink);}
-body{
-  display:flex;align-items:center;justify-content:center;overflow-y:auto;
-  flex-direction:column; padding:40px 0;
-  background: radial-gradient(1000px 1000px at 50% 52%, #0b1d3a, #040a16 60%, #02060f 100%);
-  animation:breatheBg 9s ease-in-out infinite alternate;
-}
-@keyframes breatheBg{
-  0%{background: radial-gradient(1000px 1000px at 50% 52%, #0b1d3a, #040a16 60%, #02060f 100%);}
-  100%{background: radial-gradient(1100px 1100px at 50% 52%, #0e244b, #061126 60%, #02060f 100%);}
-}
+body{display:flex;flex-direction:column;align-items:center;padding:40px;background:radial-gradient(1000px 1000px at 50% 52%,#0b1d3a,#040a16 60%,#02060f 100%);animation:breatheBg 9s ease-in-out infinite alternate;}
+@keyframes breatheBg{0%{background:radial-gradient(1000px 1000px at 50% 52%,#0b1d3a,#040a16 60%,#02060f 100%);}100%{background:radial-gradient(1100px 1100px at 50% 52%,#0e244b,#061126 60%,#02060f 100%);}}
 
-/* 🧭 キャッチコピー */
-.catch {
-  text-align: center;
-  color: #eaf2ff;
-  margin-top: 20px;
-  margin-bottom: 40px;
-  animation: fadeIn 1.5s ease-out;
-  max-width: 700px;
-}
-.catch h1 {
-  font-size: 1.6rem;
-  font-weight: 600;
-  color: #ffffff;
-  background: linear-gradient(90deg, #8fd3f4, #84fab0);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin-bottom: 12px;
-}
-.catch p {
-  font-size: 1.15rem;
-  color: #b8c8e6;
-  margin: 4px 0;
-}
+/* キャッチコピー */
+.catch{text-align:center;color:#eaf2ff;margin-bottom:30px;max-width:700px;}
+.catch h1{font-size:1.6rem;background:linear-gradient(90deg,#8fd3f4,#84fab0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.catch p{font-size:1.1rem;color:#b8c8e6;}
 
-/* 🪞 Mirror Loop紹介 */
-.intro {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  padding: 20px 24px;
-  margin-bottom: 24px;
-  color: #e0e6f8;
-  font-size: 0.95rem;
-  line-height: 1.6;
-  box-shadow: 0 0 20px rgba(0,0,0,0.3);
-  animation: fadeIn 1.2s ease-out;
-  max-width: 700px;
-}
-.intro h2 {
-  color: #9cc8ff;
-  font-weight: 600;
-  margin-bottom: 12px;
-  font-size: 1.3rem;
-}
-.intro ul {
-  list-style: none;
-  padding-left: 0;
-}
-.intro li { margin: 6px 0; }
-
-/* 💬 メインカード */
-.card{width:min(94vw,420px);background:var(--panel);backdrop-filter:blur(18px);border-radius:20px;padding:22px 22px 16px;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+/* カード */
+.card{width:min(94vw,440px);background:var(--panel);backdrop-filter:blur(18px);border-radius:20px;padding:22px;margin-bottom:20px;box-shadow:0 20px 60px rgba(0,0,0,.35);}
 h1{margin:0 0 10px;font-size:1.05rem;color:#8dd4ff;text-align:center;}
 .row{display:flex;gap:8px;}
-input{
-  width:100%;padding:12px 14px;border-radius:12px;border:none;outline:none;
-  background:rgba(255,255,255,.08);color:var(--ink);font-size:1rem;
-}
-input::placeholder{color:#8aa0b3;}
-.btn{
-  position:relative;border:none;outline:none;cursor:pointer;color:white;border-radius:12px;
-  padding:12px 14px;font-weight:700;flex:1;background:linear-gradient(90deg,#0a84ff,#00b7ff);
-  transition: box-shadow .25s, transform .05s; overflow:hidden;
-}
-.btn:hover{ box-shadow:0 0 22px rgba(0,183,255,.45); }
-.btn:active{ transform:translateY(1px); }
-.btn.secondary{ background:linear-gradient(90deg,#1b9aaa,#35d0c0); }
-.btn.danger{ background:linear-gradient(90deg,#ff5757,#ff8a8a); }
-.btn.listening{ box-shadow:0 0 18px rgba(255,120,120,.6); animation:pulse 1s infinite; }
-@keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.04)}100%{transform:scale(1)}}
-.result{ margin-top:12px;background:rgba(255,255,255,.05);border-radius:12px;padding:12px;min-height:110px;font-size:.98rem;line-height:1.65;}
-.block{ margin:2px 0 8px; }
-.sep{ height:8px; }
-.footer{ margin-top:8px;font-size:.8rem;color:#86a3b8;text-align:center;}
-@keyframes fadeIn{0%{opacity:0;transform:translateY(10px);}100%{opacity:1;transform:none;}}
+input{width:100%;padding:12px 14px;border-radius:12px;border:none;background:rgba(255,255,255,.08);color:var(--ink);}
+.btn{border:none;cursor:pointer;color:white;border-radius:12px;padding:12px 14px;font-weight:700;flex:1;background:linear-gradient(90deg,#0a84ff,#00b7ff);transition:box-shadow .25s,transform .05s;}
+.btn:hover{box-shadow:0 0 22px rgba(0,183,255,.45);}
+.btn:active{transform:translateY(1px);}
+.result{margin-top:12px;background:rgba(255,255,255,.05);border-radius:12px;padding:12px;min-height:110px;}
+.footer{text-align:center;margin-top:8px;font-size:.8rem;color:#86a3b8;}
+
+/* 日記モード */
+#diaryList{margin-top:20px;width:min(94vw,440px);background:rgba(255,255,255,.05);border-radius:12px;padding:16px;}
+#diaryList h2{margin-top:0;font-size:1.1rem;color:#9cc8ff;}
+.entry{background:rgba(255,255,255,.06);margin-bottom:10px;border-radius:8px;padding:8px 12px;}
+.entry-date{color:#a9bcd4;font-size:.85rem;}
+.entry-text{white-space:pre-wrap;margin-top:4px;}
+.summaryBox{background:rgba(255,255,255,.08);padding:10px;border-radius:10px;margin-top:12px;font-size:.95rem;}
 </style>
 </head>
 <body>
-
-<!-- 🧭 キャッチコピー -->
 <div class="catch">
   <h1>モヤっとしたままで心がぐちゃぐちゃだと前に進めない。</h1>
   <p>AIに心の中を整理してもらい、スッキリしましょう。これは「心を映すAI日記アプリ」です。</p>
 </div>
 
-<!-- 🪞 Mirror Loop紹介 -->
-<div class="intro">
-  <h2>🪞 Mirror Loopとは？</h2>
-  <p>
-    Mirror Loopは、AIと対話しながら気持ちを整理し、前向きな一歩を見つける「自己リフレクションアプリ」です。<br>
-    その日の出来事や感じたことを入力すると、AIが3ステップであなたの思考を映し返します。
-  </p>
-  <ul>
-    <li>✨ <strong>要約：</strong> あなたの言葉を整理して本質を抽出</li>
-    <li>💡 <strong>助言：</strong> 感情に寄り添いながら次の行動を提案</li>
-    <li>🌙 <strong>次の一言：</strong> 明日へつながる小さな励まし</li>
-  </ul>
-  <p>
-    テキスト入力でも、音声入力でもOK。Reflectを押すとAIがあなた専属の“心の鏡”として応えます。
-  </p>
+<div class="card">
+  <h1>💎 Mirror Loop</h1>
+  <input id="userInput" placeholder="今日の出来事や気持ちを入力…" autocomplete="off"/>
+  <div class="row" style="margin-top:10px;">
+    <button id="reflectBtn" class="btn">Reflect</button>
+    <button id="summarizeBtn" class="btn" style="background:linear-gradient(90deg,#24c6dc,#514a9d)">今日のまとめ</button>
+  </div>
+  <div id="result" class="result"></div>
+  <div class="footer">Reflectした内容は自動で保存され、いつでも日記から見返せます。</div>
 </div>
 
-<!-- 💬 メインカード -->
-  <div class="card">
-    <h1>💎 Mirror Loop</h1>
-    <input id="userInput" placeholder="例：今日は落ち着いて過ごせた" autocomplete="off"/>
-    <div class="row" style="margin-top:10px;">
-      <button id="reflectBtn" class="btn">Reflect</button>
-      <button id="speakBtn" class="btn secondary">🔊 読み上げ</button>
-      <button id="micBtn" class="btn danger">🎤 音声入力</button>
-    </div>
-    <div id="result" class="result">
-      <div id="b1" class="block"></div>
-      <div class="sep"></div>
-      <div id="b2" class="block"></div>
-      <div class="sep"></div>
-      <div id="b3" class="block"></div>
-    </div>
-    <div class="footer">🎙️ 音声入力/出力は Chrome または Edge 推奨</div>
-  </div>
+<div id="diaryList">
+  <h2>📘 日記一覧</h2>
+  <div id="entries"></div>
+</div>
 
 <script>
-// JS部分は前回の mirror_loop.py と連動（省略せず使用）
-</script>
+const reflectBtn = document.getElementById("reflectBtn");
+const summarizeBtn = document.getElementById("summarizeBtn");
+const input = document.getElementById("userInput");
+const result = document.getElementById("result");
+const entries = document.getElementById("entries");
 
+function today(){return new Date().toISOString().slice(0,10);}
+function loadDiary(){return JSON.parse(localStorage.getItem("mirror_diary")||"{}");}
+function saveDiary(d){localStorage.setItem("mirror_diary",JSON.stringify(d));}
+function renderDiary(){
+  const data=loadDiary();
+  entries.innerHTML="";
+  Object.keys(data).sort().reverse().forEach(date=>{
+    const div=document.createElement("div");
+    div.className="entry";
+    div.innerHTML=`<div class="entry-date">${date}</div><div class="entry-text">${data[date].join("\\n")}</div>`;
+    entries.appendChild(div);
+  });
+}
+
+reflectBtn.onclick=async()=>{
+  const text=input.value.trim(); if(!text) return alert("入力してください");
+  result.textContent="考えています…";
+  const r=await fetch("/reflect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user_input:text})});
+  const data=await r.json();
+  if(!data.reply){result.textContent="エラー";return;}
+  const {summary,advice,next}=data.reply;
+  const msg=`${summary}\\n${advice}\\n${next}`;
+  result.textContent=msg;
+  const diary=loadDiary(); const date=today();
+  diary[date]=diary[date]||[]; diary[date].push(msg); saveDiary(diary);
+  renderDiary(); input.value="";
+};
+
+summarizeBtn.onclick=async()=>{
+  const diary=loadDiary(); const date=today(); const items=diary[date]||[];
+  if(items.length===0) return alert("今日のReflectがまだありません。");
+  result.textContent="AIがまとめています…";
+  const r=await fetch("/summarize",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items})});
+  const data=await r.json();
+  if(data.summary){
+    const box=document.createElement("div");
+    box.className="summaryBox";
+    box.textContent="🧠 今日のまとめ："+data.summary;
+    result.appendChild(box);
+  }
+};
+
+renderDiary();
+</script>
 </body>
 </html>
