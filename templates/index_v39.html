@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mirror Loop v0.3.9</title>
+<style>
+  :root{ --panel: rgba(18,26,44,.6); --ink:#eaf7ff; --muted:#9db5c9; --accent: #00b7ff; }
+  html,body{height:100%; margin:0; font-family: "Noto Sans JP", system-ui, -apple-system, Segoe UI, sans-serif; color: var(--ink);}
+  body{
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+    background: radial-gradient(1000px 1000px at 50% 52%, #0b1d3a, #040a16 60%, #02060f 100%);
+    animation: breatheBg 9s ease-in-out infinite alternate;
+  }
+  @keyframes breatheBg{
+    0%{ background: radial-gradient(1000px 1000px at 50% 52%, #0b1d3a, #040a16 60%, #02060f 100%);}
+    100%{background: radial-gradient(1100px 1100px at 50% 52%, #0e244b, #061126 60%, #02060f 100%);}
+  }
+  .card{
+    width:min(94vw,420px); background:var(--panel); backdrop-filter: blur(18px);
+    border-radius:20px; padding:22px 22px 16px; box-shadow:0 20px 60px rgba(0,0,0,.35);
+  }
+  h1{margin:0 0 10px; font-size:1.05rem; color:#8dd4ff; text-align:center;}
+  .hint{margin:6px 0 12px; font-size:.85rem; color:var(--muted); text-align:center;}
+  .row{display:flex; gap:8px;}
+  input{
+    width:100%; padding:12px 14px; border-radius:12px; border:none; outline:none;
+    background:rgba(255,255,255,.08); color:var(--ink); font-size:1rem;
+  }
+  input::placeholder{ color:#8aa0b3;}
+  .btn{
+    position:relative; border:none; outline:none; cursor:pointer; color:white;
+    border-radius:12px; padding:12px 14px; font-weight:700; flex:1;
+    background: linear-gradient(90deg, #0a84ff, #00b7ff);
+    transition: box-shadow .25s transform .05s;
+    overflow:hidden;
+  }
+  .btn:hover{ box-shadow:0 0 22px rgba(0,183,255,.45); }
+  .btn:active{ transform: translateY(1px); }
+  .btn::after{
+    content:""; position:absolute; top:50%; left:50%; width:0; height:0; opacity:0;
+    background: rgba(255,255,255,.45); border-radius:50%; transform:translate(-50%,-50%);
+    transition: width .55s ease, height .55s ease, opacity .55s ease;
+  }
+  .btn:active::after{ width:260%; height:260%; opacity:0; }
+  .btn.secondary{ background: linear-gradient(90deg, #1b9aaa, #35d0c0); }
+  .btn.danger{ background: linear-gradient(90deg, #ff5757, #ff8a8a); }
+  .btn.listening{ box-shadow:0 0 18px rgba(255,120,120,.6); animation:pulse 1s infinite; }
+  @keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.04)}100%{transform:scale(1)}}
+
+  .result{
+    margin-top:12px; background: rgba(255,255,255,.05); border-radius:12px; padding:12px 12px 10px; min-height:110px;
+    font-size:.98rem; line-height:1.65;
+  }
+  .kvs{ display:grid; grid-template-columns: 68px 1fr; gap:6px 10px; }
+  .k{ color:#81cfff; text-align:right; }
+  .v{ color:#e9f6ff; }
+  .footer{ margin-top:8px; font-size:.8rem; color:#86a3b8; text-align:center;}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>💎 Mirror Loop v0.3.9</h1>
+    <div class="hint">例文にカーソルを置くと消えます。Reflect後、入力欄は自動クリア。</div>
+
+    <input id="userInput" placeholder="例：今日は落ち着いて過ごせた" autocomplete="off" />
+
+    <div class="row" style="margin-top:10px;">
+      <button id="reflectBtn" class="btn">Reflect</button>
+      <button id="speakBtn" class="btn secondary">🔊 読み上げ</button>
+      <button id="micBtn" class="btn danger">🎤 音声入力</button>
+    </div>
+
+    <div id="result" class="result">
+      <div class="kvs" id="kvsArea" style="display:none;"></div>
+      <div id="rawArea" style="display:none;"></div>
+    </div>
+
+    <div class="footer">🎙️ 音声入力／出力は Chrome 推奨</div>
+  </div>
+
+<script>
+  const $ = sel => document.querySelector(sel);
+  const input = $("#userInput");
+  const reflectBtn = $("#reflectBtn");
+  const speakBtn = $("#speakBtn");
+  const micBtn = $("#micBtn");
+  const kvsArea = $("#kvsArea");
+  const rawArea = $("#rawArea");
+
+  // プレースホルダー自動クリア復帰
+  input.addEventListener("focus", ()=> input.placeholder = "");
+  input.addEventListener("blur", ()=> { if(!input.value) input.placeholder = "例：今日は落ち着いて過ごせた"; });
+
+  // 数字・ラベル・記号を徹底除去（読み上げ用）
+  function cleanForTTS(text){
+    if(!text) return "";
+    return text
+      .replace(/^\s*[\d０-９]+[)\.．]\s*/gm, "")     // 1. / １． / 1) を行頭で除去
+      .replace(/^\s*[・\-＊*]\s*/gm, "")            // 箇条書き記号
+      .replace(/(要約|助言|次の一言|カテゴリ)\s*[:：]\s*/g, "") // ラベル
+      .replace(/[💡⭐️✨🔥✅▶️➤→•●◆■◉※★☆◎○●▲△■□◆◇▶▷➤➔➜]/g, "")
+      .replace(/\s+/g, " ")
+      .replace(/\n+/g, "。")
+      .replace(/[。]{2,}/g, "。")
+      .trim();
+  }
+
+  // 画面表示（ラベルは**出さない**）
+  function renderReply(obj){
+    if(obj && (obj.summary || obj.advice || obj.next)){
+      kvsArea.style.display = "grid";
+      rawArea.style.display = "none";
+      kvsArea.innerHTML = "";
+
+      const rows = [
+        ["要点", (obj.summary||"").trim()],
+        ["助言", (obj.advice||"").trim()],
+        ["ひと言", (obj.next||"").trim()],
+      ];
+      for(const [k,v] of rows){
+        const kEl = document.createElement("div"); kEl.className="k"; kEl.textContent=k;
+        const vEl = document.createElement("div"); vEl.className="v"; vEl.textContent=v;
+        kvsArea.appendChild(kEl); kvsArea.appendChild(vEl);
+      }
+      // 読み上げ用テキストを保存
+      rawArea.dataset.tts = cleanForTTS(rows.map(([_,v])=>v).join("。"));
+    }else{
+      kvsArea.style.display = "none";
+      rawArea.style.display = "block";
+      rawArea.textContent = (typeof obj === "string" ? obj : JSON.stringify(obj));
+      rawArea.dataset.tts = cleanForTTS(rawArea.textContent);
+    }
+  }
+
+  // Reflect
+  reflectBtn.addEventListener("click", async ()=>{
+    const text = input.value.trim();
+    if(!text){ alert("入力してください"); return; }
+    reflectBtn.disabled = true;
+    renderReply("考えています…");
+    try{
+      const res = await fetch("/reflect", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({user_input:text})
+      });
+      const data = await res.json();
+      if(data.reply){
+        renderReply(data.reply);
+        input.value = "";  // 送信後に入力欄クリア
+      }else{
+        renderReply("エラー：" + (data.error||"不明なエラー"));
+      }
+    }catch(e){
+      renderReply("通信エラー");
+    }finally{
+      reflectBtn.disabled = false;
+    }
+  });
+
+  // 音声入力
+  let recognition;
+  if('webkitSpeechRecognition' in window){
+    recognition = new webkitSpeechRecognition();
+    recognition.lang = "ja-JP"; recognition.continuous = false; recognition.interimResults = false;
+
+    micBtn.addEventListener("click", ()=>{
+      if(micBtn.classList.contains("listening")){ recognition.stop(); }
+      else{ recognition.start(); micBtn.classList.add("listening"); micBtn.textContent="🛑 停止"; }
+    });
+    recognition.onresult = e => { input.value = e.results[0][0].transcript; };
+    recognition.onend = () => { micBtn.classList.remove("listening"); micBtn.textContent="🎤 音声入力"; };
+    recognition.onerror = () => { micBtn.classList.remove("listening"); micBtn.textContent="🎤 音声入力"; };
+  }else{
+    micBtn.disabled = true; micBtn.textContent = "🎤 非対応";
+  }
+
+  // 読み上げ（イケボ寄り・文毎に間を置く）
+  speakBtn.addEventListener("click", ()=>{
+    const text = rawArea.dataset.tts || "";
+    if(!text){ alert("読み上げる内容がありません"); return; }
+    if(!("speechSynthesis" in window)){ alert("音声出力非対応ブラウザです"); return; }
+
+    speechSynthesis.cancel();
+    const sentences = text.split(/(?<=[。！？!?])/).filter(Boolean);
+
+    const base = { lang:"ja-JP", rate:0.93, pitch:0.85, volume:1.0 }; // 低め=イケボ寄り
+    let i = 0;
+    const speakNext = ()=>{
+      if(i>=sentences.length) return;
+      const u = new SpeechSynthesisUtterance(sentences[i]);
+      Object.assign(u, base);
+      // 少し抑揚
+      if(/(よね|だね|かな)/.test(sentences[i])) u.pitch = 1.0;
+      if(/(大丈夫|安心|ゆっくり|落ち着)/.test(sentences[i])) u.rate = 0.9;
+      // 日本語ボイスを優先
+      const vs = speechSynthesis.getVoices();
+      u.voice = vs.find(v=> v.name.includes("Japanese") || v.name.includes("日本語") || v.lang==="ja-JP") || null;
+
+      speechSynthesis.speak(u);
+      u.onend = ()=> setTimeout(()=>{ i++; speakNext(); }, 280);
+    };
+    speakNext();
+  });
+</script>
+</body>
+</html>
