@@ -4,6 +4,8 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Mirror Loop</title>
+<!-- Chart.js CDN（グラフ用） -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 :root{ --panel: rgba(18,26,44,.6); --ink:#eaf7ff; --muted:#9db5c9; --accent:#00b7ff; }
 html,body{height:100%;margin:0;font-family:"Noto Sans JP",system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink);}
@@ -11,28 +13,35 @@ body{display:flex;flex-direction:column;align-items:center;padding:40px;backgrou
 @keyframes breatheBg{0%{background:radial-gradient(1000px 1000px at 50% 52%,#0b1d3a,#040a16 60%,#02060f 100%);}100%{background:radial-gradient(1100px 1100px at 50% 52%,#0e244b,#061126 60%,#02060f 100%);}}
 
 /* キャッチコピー */
-.catch{text-align:center;color:#eaf2ff;margin-bottom:30px;max-width:700px;}
+.catch{text-align:center;color:#eaf2ff;margin-bottom:30px;max-width:820px;}
 .catch h1{font-size:1.6rem;background:linear-gradient(90deg,#8fd3f4,#84fab0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
 .catch p{font-size:1.1rem;color:#b8c8e6;}
 
 /* カード */
-.card{width:min(94vw,440px);background:var(--panel);backdrop-filter:blur(18px);border-radius:20px;padding:22px;margin-bottom:20px;box-shadow:0 20px 60px rgba(0,0,0,.35);}
-h1{margin:0 0 10px;font-size:1.05rem;color:#8dd4ff;text-align:center;}
-.row{display:flex;gap:8px;}
-input{width:100%;padding:12px 14px;border-radius:12px;border:none;background:rgba(255,255,255,.08);color:var(--ink);}
-.btn{border:none;cursor:pointer;color:white;border-radius:12px;padding:12px 14px;font-weight:700;flex:1;background:linear-gradient(90deg,#0a84ff,#00b7ff);transition:box-shadow .25s,transform .05s;}
+.card{width:min(96vw,780px);background:var(--panel);backdrop-filter:blur(18px);border-radius:20px;padding:22px;margin-bottom:20px;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+h1{margin:0 0 10px;font-size:1.05rem;color:#8dd4ff;text-align:left;}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+input,textarea{width:100%;padding:12px 14px;border-radius:12px;border:none;background:rgba(255,255,255,.08);color:var(--ink);}
+textarea{min-height:70px;resize:vertical;}
+.btn{border:none;cursor:pointer;color:white;border-radius:12px;padding:12px 14px;font-weight:700;background:linear-gradient(90deg,#0a84ff,#00b7ff);transition:box-shadow .25s,transform .05s;}
 .btn:hover{box-shadow:0 0 22px rgba(0,183,255,.45);}
 .btn:active{transform:translateY(1px);}
-.result{margin-top:12px;background:rgba(255,255,255,.05);border-radius:12px;padding:12px;min-height:110px;}
-.footer{text-align:center;margin-top:8px;font-size:.8rem;color:#86a3b8;}
+.btn.alt{background:linear-gradient(90deg,#24c6dc,#514a9d)}
+.btn.ghost{background:rgba(255,255,255,.12)}
+.result{margin-top:12px;background:rgba(255,255,255,.05);border-radius:12px;padding:12px;min-height:110px;white-space:pre-wrap;}
 
-/* 日記モード */
-#diaryList{margin-top:20px;width:min(94vw,440px);background:rgba(255,255,255,.05);border-radius:12px;padding:16px;}
-#diaryList h2{margin-top:0;font-size:1.1rem;color:#9cc8ff;}
+/* 日記・一覧 */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.box{background:rgba(255,255,255,.05);border-radius:12px;padding:16px;}
+.box h2{margin:0 0 10px;font-size:1.05rem;color:#9cc8ff;}
 .entry{background:rgba(255,255,255,.06);margin-bottom:10px;border-radius:8px;padding:8px 12px;}
 .entry-date{color:#a9bcd4;font-size:.85rem;}
 .entry-text{white-space:pre-wrap;margin-top:4px;}
 .summaryBox{background:rgba(255,255,255,.08);padding:10px;border-radius:10px;margin-top:12px;font-size:.95rem;}
+.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* グラフ */
+canvas{background:rgba(255,255,255,.03);border-radius:12px;padding:8px}
 </style>
 </head>
 <body>
@@ -43,70 +52,213 @@ input{width:100%;padding:12px 14px;border-radius:12px;border:none;background:rgb
 
 <div class="card">
   <h1>💎 Mirror Loop</h1>
-  <input id="userInput" placeholder="今日の出来事や気持ちを入力…" autocomplete="off"/>
+  <textarea id="userInput" placeholder="今日の出来事や気持ちを自由につぶやく…"></textarea>
   <div class="row" style="margin-top:10px;">
-    <button id="reflectBtn" class="btn">Reflect</button>
-    <button id="summarizeBtn" class="btn" style="background:linear-gradient(90deg,#24c6dc,#514a9d)">今日のまとめ</button>
+    <button id="reflectBtn" class="btn">Reflect（AIに返してもらう）</button>
+    <button id="summarizeBtn" class="btn alt">今日のまとめ（AI要約）</button>
+    <button id="readBtn" class="btn ghost">まとめを朗読（イケボ）</button>
   </div>
   <div id="result" class="result"></div>
-  <div class="footer">Reflectした内容は自動で保存され、いつでも日記から見返せます。</div>
 </div>
 
-<div id="diaryList">
-  <h2>📘 日記一覧</h2>
-  <div id="entries"></div>
+<div class="two-col" style="width:min(96vw,780px);">
+  <div class="box">
+    <h2>📘 日記一覧（直近）</h2>
+    <div id="entries"></div>
+  </div>
+  <div class="box">
+    <h2>📈 気分トレンド（直近7日）</h2>
+    <canvas id="moodChart" height="220"></canvas>
+    <div id="moodTags" style="margin-top:8px;color:#bcd0e6;font-size:.9rem"></div>
+  </div>
 </div>
+
+<!-- 再生用（hidden） -->
+<audio id="ttsAudio" preload="auto"></audio>
 
 <script>
-const reflectBtn = document.getElementById("reflectBtn");
-const summarizeBtn = document.getElementById("summarizeBtn");
-const input = document.getElementById("userInput");
-const result = document.getElementById("result");
-const entries = document.getElementById("entries");
+// ======= ストレージ操作 =======
+const KEY = "mirror_diary_v2"; // { [date]: { logs: string[], summary?: string, mood?: {score,tags[]} } }
+const today = () => new Date().toISOString().slice(0,10);
+const load = () => JSON.parse(localStorage.getItem(KEY) || "{}");
+const save = (obj) => localStorage.setItem(KEY, JSON.stringify(obj));
+const pushLog = (date, text) => {
+  const db = load();
+  if(!db[date]) db[date] = { logs: [] };
+  db[date].logs.push(text);
+  save(db);
+};
+const setSummary = (date, summary) => {
+  const db = load();
+  if(!db[date]) db[date] = { logs: [] };
+  db[date].summary = summary;
+  save(db);
+};
+const setMood = (date, score, tags) => {
+  const db = load();
+  if(!db[date]) db[date] = { logs: [] };
+  db[date].mood = { score, tags };
+  save(db);
+};
 
-function today(){return new Date().toISOString().slice(0,10);}
-function loadDiary(){return JSON.parse(localStorage.getItem("mirror_diary")||"{}");}
-function saveDiary(d){localStorage.setItem("mirror_diary",JSON.stringify(d));}
+// ======= UI参照 =======
+const userInput   = document.getElementById("userInput");
+const reflectBtn  = document.getElementById("reflectBtn");
+const summarizeBtn= document.getElementById("summarizeBtn");
+const readBtn     = document.getElementById("readBtn");
+const result      = document.getElementById("result");
+const entriesEl   = document.getElementById("entries");
+const moodCanvas  = document.getElementById("moodChart");
+const moodTagsEl  = document.getElementById("moodTags");
+const ttsAudio    = document.getElementById("ttsAudio");
+
+// ======= 表示＆描画 =======
 function renderDiary(){
-  const data=loadDiary();
-  entries.innerHTML="";
-  Object.keys(data).sort().reverse().forEach(date=>{
+  const db = load();
+  entriesEl.innerHTML = "";
+  Object.keys(db).sort().reverse().forEach(date=>{
+    const d = db[date];
     const div=document.createElement("div");
     div.className="entry";
-    div.innerHTML=`<div class="entry-date">${date}</div><div class="entry-text">${data[date].join("\\n")}</div>`;
-    entries.appendChild(div);
+    const sum = d.summary ? `<div class="summaryBox">🧠 今日のまとめ：${escapeHtml(d.summary)}</div>` : "";
+    div.innerHTML = `
+      <div class="entry-date">${date}</div>
+      <div class="entry-text">${escapeHtml((d.logs||[]).join("\n\n"))}</div>
+      ${sum}
+    `;
+    entriesEl.appendChild(div);
   });
 }
 
-reflectBtn.onclick=async()=>{
-  const text=input.value.trim(); if(!text) return alert("入力してください");
-  result.textContent="考えています…";
-  const r=await fetch("/reflect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user_input:text})});
-  const data=await r.json();
-  if(!data.reply){result.textContent="エラー";return;}
-  const {summary,advice,next}=data.reply;
-  const msg=`${summary}\\n${advice}\\n${next}`;
-  result.textContent=msg;
-  const diary=loadDiary(); const date=today();
-  diary[date]=diary[date]||[]; diary[date].push(msg); saveDiary(diary);
-  renderDiary(); input.value="";
+let chart;
+function renderChart(){
+  const db = load();
+  const dates = Object.keys(db).sort().slice(-7); // 直近7日
+  const data  = dates.map(d => (db[d].mood && db[d].mood.score) ? db[d].mood.score : null);
+  if(chart){ chart.destroy(); }
+  chart = new Chart(moodCanvas.getContext("2d"), {
+    type: "line",
+    data: {
+      labels: dates,
+      datasets: [{
+        label: "mood score",
+        data,
+        tension: 0.35,
+        fill: false
+      }]
+    },
+    options: {
+      plugins:{ legend: { display:false } },
+      scales: {
+        y: { min: 0, max: 100, ticks: { stepSize: 20 } }
+      }
+    }
+  });
+  // 最新日のタグ表示
+  const last = dates[dates.length-1];
+  if(last && db[last].mood && db[last].mood.tags){
+    moodTagsEl.textContent = `きょうのキーワード：${db[last].mood.tags.join(" / ")}`;
+  }else{
+    moodTagsEl.textContent = "";
+  }
+}
+
+function escapeHtml(s){
+  return (s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+}
+
+// ======= クリーニング（数字/ラベル/記号） =======
+function cleanLine(t){
+  if(!t) return "";
+  t = t.replace(/^\s*(?:\(?\s*[\d０-９]+\s*\)?[\.．\)]\s*)/gm, "");
+  t = t.replace(/^(要約|助言|次の一言|カテゴリ)\s*[:：]\s*/gm, "");
+  t = t.replace(/[💡⭐️✨🔥✅▶️➤→•●◆■◉※★☆◎○●▲△■□◆◇]/g, "");
+  return t.trim();
+}
+
+// ======= ボタン動作 =======
+reflectBtn.onclick = async () => {
+  const text = userInput.value.trim();
+  if(!text) return alert("入力してください");
+  result.textContent = "考えています…";
+  const r = await fetch("/reflect", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ user_input: text })
+  });
+  const data = await r.json();
+  if(!data.reply){ result.textContent = "エラー"; return; }
+  const {summary,advice,next} = data.reply;
+  const msg = `${summary}\n${advice}\n${next}`;
+  result.textContent = msg;
+  pushLog(today(), msg);
+  userInput.value = "";
+  renderDiary();
 };
 
-summarizeBtn.onclick=async()=>{
-  const diary=loadDiary(); const date=today(); const items=diary[date]||[];
-  if(items.length===0) return alert("今日のReflectがまだありません。");
-  result.textContent="AIがまとめています…";
-  const r=await fetch("/summarize",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items})});
-  const data=await r.json();
-  if(data.summary){
-    const box=document.createElement("div");
-    box.className="summaryBox";
-    box.textContent="🧠 今日のまとめ："+data.summary;
+summarizeBtn.onclick = async () => {
+  const db = load();
+  const date = today();
+  const items = (db[date]?.logs || []);
+  if(items.length === 0) return alert("今日のReflectがまだありません。");
+  result.textContent = "AIがまとめています…";
+  // 要約
+  const s = await fetch("/summarize", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ items })
+  }).then(r=>r.json());
+  if(s.summary){
+    setSummary(date, cleanLine(s.summary));
+  }
+  // 感情スコア
+  const a = await fetch("/analyze", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ items })
+  }).then(r=>r.json());
+  if(typeof a.mood_score === "number"){
+    setMood(date, a.mood_score, a.tags || []);
+  }
+  renderDiary();
+  renderChart();
+  // まとめを画面下にも表示
+  if(s.summary){
+    const box = document.createElement("div");
+    box.className = "summaryBox";
+    box.textContent = "🧠 今日のまとめ：" + s.summary;
     result.appendChild(box);
   }
 };
 
+readBtn.onclick = async () => {
+  // 今日のまとめがあればそれを、なければ直近のログを読む
+  const db = load();
+  const date = today();
+  let text = (db[date]?.summary || "");
+  if(!text){
+    const logs = db[date]?.logs || [];
+    if(logs.length === 0) return alert("読み上げる内容がありません。まずReflectしてください。");
+    text = logs[logs.length-1]; // 直近
+  }
+  const payload = { text, voice: "alloy" }; // 若め自然系。haru/verse等に変更可
+  const resp = await fetch("/tts", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  });
+  if(!resp.ok){
+    return alert("音声生成エラー");
+  }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  ttsAudio.src = url;
+  ttsAudio.play();
+};
+
+// 初期描画
 renderDiary();
+renderChart();
 </script>
 </body>
 </html>
