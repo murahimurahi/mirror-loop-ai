@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mirror Loop v0.3.9</title>
+<style>
+body {
+  margin: 0; height: 100vh; display: flex; justify-content: center; align-items: center;
+  background: radial-gradient(circle at center, #0b1d3a, #040a16 80%);
+  overflow: hidden; font-family: "Noto Sans JP", sans-serif;
+  color: #fff; animation: breathe 10s ease-in-out infinite alternate;
+}
+@keyframes breathe {
+  0% { background: radial-gradient(circle at center, #0b1d3a, #040a16 80%); }
+  100% { background: radial-gradient(circle at center, #09254d, #030812 80%); }
+}
+.container {
+  background: rgba(20, 30, 50, 0.6);
+  backdrop-filter: blur(20px);
+  border-radius: 20px; padding: 30px; width: 380px;
+  box-shadow: 0 0 25px rgba(0,0,0,0.3);
+}
+h1 { text-align: center; font-size: 1.2rem; color: #80d0ff; margin-top: 0; }
+
+input, button {
+  width: 100%; box-sizing: border-box; font-size: 1rem;
+  padding: 12px; margin-top: 10px; border-radius: 10px;
+  border: none; outline: none;
+}
+input { background: rgba(255,255,255,0.1); color: #fff; }
+input::placeholder { color: #aaa; }
+
+button {
+  background: linear-gradient(90deg, #007bff, #00bfff);
+  color: #fff; font-weight: bold; cursor: pointer;
+  position: relative; overflow: hidden; transition: box-shadow 0.3s;
+}
+button::after {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  width: 0; height: 0; background: rgba(255,255,255,0.4);
+  border-radius: 50%; transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s, opacity 0.6s;
+  opacity: 0;
+}
+button:active::after { width: 300%; height: 300%; opacity: 0; }
+button:hover { box-shadow: 0 0 20px rgba(0,191,255,0.4); }
+
+#result {
+  background: rgba(255,255,255,0.05);
+  padding: 12px; border-radius: 10px; margin-top: 15px; min-height: 100px;
+  line-height: 1.6;
+}
+
+.subtext {
+  text-align: center; color: #aaa; font-size: 0.85rem; margin-top: 6px;
+}
+.controls { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+button.small { width: 31%; font-size: 0.9rem; }
+
+button.listening {
+  background: linear-gradient(90deg, #ff4d4d, #ff8080);
+  box-shadow: 0 0 20px rgba(255,100,100,0.6);
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+  <h1>💎 Mirror Loop v0.3.9</h1>
+  <input id="userInput" type="text" placeholder="例：今日は落ち着いて過ごせた" autocomplete="off">
+  <div class="controls">
+    <button id="reflectBtn" class="small">Reflect</button>
+    <button id="speakBtn" class="small">🔊 読み上げ</button>
+    <button id="micBtn" class="small">🎤 音声入力</button>
+  </div>
+  <div id="result">ここにAIの返答が表示されます。</div>
+  <div class="subtext">🎙️ 音声入力・読み上げ対応（Chrome推奨）</div>
+</div>
+
+<script>
+// ---------------- Reflect ----------------
+const input = document.getElementById("userInput");
+const reflectBtn = document.getElementById("reflectBtn");
+const resultBox = document.getElementById("result");
+const speakBtn = document.getElementById("speakBtn");
+const micBtn = document.getElementById("micBtn");
+
+input.addEventListener("focus", ()=> input.placeholder = "");
+input.addEventListener("blur", ()=> { if(!input.value) input.placeholder = "例：今日は落ち着いて過ごせた"; });
+
+reflectBtn.addEventListener("click", async ()=>{
+  const text = input.value.trim();
+  if(!text){ alert("入力してください"); return; }
+  reflectBtn.disabled = true;
+  resultBox.textContent = "考えています...";
+  try{
+    const res = await fetch("/reflect", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({user_input: text})
+    });
+    const data = await res.json();
+    if(data.reply){
+      resultBox.textContent = data.reply;
+      input.value = "";
+    } else {
+      resultBox.textContent = "エラー：" + (data.error || "不明なエラー");
+    }
+  }catch(e){
+    resultBox.textContent = "通信エラー";
+  }finally{
+    reflectBtn.disabled = false;
+  }
+});
+
+// ---------------- 音声入力 ----------------
+let recognition;
+if ('webkitSpeechRecognition' in window) {
+  recognition = new webkitSpeechRecognition();
+  recognition.lang = "ja-JP";
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  micBtn.addEventListener("click", () => {
+    if (micBtn.classList.contains("listening")) {
+      recognition.stop();
+      micBtn.classList.remove("listening");
+      micBtn.textContent = "🎤 音声入力";
+    } else {
+      recognition.start();
+      micBtn.classList.add("listening");
+      micBtn.textContent = "🛑 停止中...";
+    }
+  });
+
+  recognition.onresult = (event) => {
+    const text = event.results[0][0].transcript;
+    input.value = text;
+    micBtn.textContent = "🎤 音声入力";
+    micBtn.classList.remove("listening");
+  };
+  recognition.onerror = () => { micBtn.textContent = "🎤 音声入力"; micBtn.classList.remove("listening"); };
+  recognition.onend = () => { micBtn.textContent = "🎤 音声入力"; micBtn.classList.remove("listening"); };
+} else {
+  micBtn.disabled = true;
+  micBtn.textContent = "🎤 非対応ブラウザ";
+}
+
+// ---------------- 音声読み上げ（自然・イケボ） ----------------
+function cleanText(raw){
+  if(!raw) return "";
+  return raw
+    .replace(/^\s*\d+[\.．]\s*/gm, "") // 文頭の数字＋ピリオド除去
+    .replace(/[0-9０-９]/g, "")
+    .replace(/[💡⭐️✨🔥✅▶️➤→•●◆■◉※★☆◎○●▲△■□◆◇▶▷➤➔➜]/g, "")
+    .replace(/(要約|助言|次の一言|カテゴリ)\s*[:：]/g, "")
+    .replace(/・/g, "、")
+    .replace(/\n+/g, "。")
+    .replace(/\s+/g, " ")
+    .replace(/[。]{2,}/g, "。")
+    .trim();
+}
+
+speakBtn.addEventListener("click", ()=>{
+  const text = cleanText(resultBox.textContent);
+  if(!text){ alert("読み上げる内容がありません"); return; }
+  if(!("speechSynthesis" in window)){
+    alert("このブラウザは音声に対応していません"); return;
+  }
+
+  const sentences = text.split(/(?<=[。！？!?])/).filter(Boolean);
+  const base = { lang:"ja-JP", rate:0.93, pitch:0.85, volume:1.0 }; // 男性寄り低音
+  speechSynthesis.cancel();
+  let i = 0;
+  const speakNext = ()=>{
+    if(i >= sentences.length) return;
+    const u = new SpeechSynthesisUtterance(sentences[i]);
+    Object.assign(u, base);
+    if(sentences[i].includes("よ") || sentences[i].includes("ね")) u.pitch = 1.0;
+    if(sentences[i].includes("大丈夫") || sentences[i].includes("頑張")) u.rate = 0.9;
+    u.voice = speechSynthesis.getVoices().find(v => v.name.includes("Google 日本語") || v.lang === "ja-JP") || null;
+    speechSynthesis.speak(u);
+    u.onend = ()=> setTimeout(()=>{ i++; speakNext(); }, 300);
+  };
+  speakNext();
+});
+</script>
+</body>
+</html>
