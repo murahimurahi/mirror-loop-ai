@@ -29,7 +29,7 @@ def _sanitize(d):
 def index():
     return render_template("index.html")
 
-# ---- Reflect：入力1件 → ユーザー視点でパラフレーズ + 行動提案 ----
+# ---- Reflect：ユーザー視点でパラフレーズ＋行動提案 ----
 @app.route("/reflect", methods=["POST"])
 def reflect():
     user_input = (request.json or {}).get("user_input", "").strip()
@@ -60,7 +60,6 @@ def reflect():
     try:
         data.update(json.loads(raw))
     except Exception:
-        # フォールバック：改行3行に分かれていた場合
         lines = [l.strip() for l in raw.splitlines() if l.strip()]
         if lines: data["summary"] = lines[0]
         if len(lines)>1: data["advice"] = lines[1]
@@ -68,7 +67,7 @@ def reflect():
 
     return jsonify({"reply": _sanitize(data)})
 
-# ---- Summarize：当日の複数メモ → ユーザー視点まとめ + 明日の助言 ----
+# ---- Summarize：当日まとめ（ユーザー一人称）＋明日の助言 ----
 @app.route("/summarize", methods=["POST"])
 def summarize():
     items = (request.json or {}).get("items", [])
@@ -100,7 +99,6 @@ def summarize():
             "advice":  _clean_line(data.get("advice",""))
         })
     except Exception:
-        # 壊れた場合の緊急フォールバック
         return jsonify({
             "summary": _clean_line(raw),
             "advice":  "深呼吸して小さく始める。無理のない一歩を選ぶ。"
@@ -142,7 +140,6 @@ def tts():
         return jsonify({"error": "textが空です"}), 400
 
     try:
-        # ストリーミングで取得してMP3返却
         with client.audio.speech.with_streaming_response.create(
             model="gpt-4o-mini-tts",
             voice=voice,
