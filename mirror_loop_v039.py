@@ -9,27 +9,32 @@ client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 @app.route("/")
 def index():
+    # 必ず v39 を返す
     return render_template("index_v39.html")
 
-def strip_head_number(s: str) -> str:
-    """行頭の番号付き箇条(1. / １． / (1) / 1) など) を除去。"""
-    return re.sub(r"^\s*[\d０-９]+[\.\)．]\s*|\s*^\(\s*[\d０-９]+\s*\)\s*", "", s, flags=re.MULTILINE)
+# ——— 表示＆読み上げの安全クリーニング ———
+def _strip_head_number(s: str) -> str:
+    # 1. / １． / 1) / (1) など行頭の番号表現を除去
+    return re.sub(r"^\s*(?:\(?\s*[\d０-９]+\s*\)?[\.．\)]\s*)", "", s, flags=re.MULTILINE)
 
-def sanitize_sections(d):
-    """番号・ラベル・記号を除いて返す（読み上げ用/表示用共通の保険）。"""
-    def clean(x: str) -> str:
-        if not x: return ""
-        x = strip_head_number(x)
-        # ラベルワードを除去
-        x = re.sub(r"^(要約|助言|次の一言|カテゴリ)\s*[:：]\s*", "", x, flags=re.MULTILINE)
-        # 箇条書き記号
-        x = re.sub(r"^\s*[・\-＊*•●◆■◉▶▷➤→]\s*", "", x, flags=re.MULTILINE)
-        # 絵文字・装飾記号（代表的なもの）
-        x = re.sub(r"[💡⭐️✨🔥✅▶️➤→•●◆■◉※★☆◎○●▲△■□◆◇▶▷➤➔➜]", "", x)
-        # 余計な空白
-        x = re.sub(r"\s+\n", "\n", x)
-        return x.strip()
-    return {k: clean(v) for k, v in d.items()}
+def _clean_for_readable(s: str) -> str:
+    if not s:
+        return ""
+    s = _strip_head_number(s)
+    # ラベル語を除去
+    s = re.sub(r"^(要約|助言|次の一言|カテゴリ)\s*[:：]\s*", "", s, flags=re.MULTILINE)
+    # 箇条記号を除去
+    s = re.sub(r"^\s*[・\-＊*•●◆■◉▶▷➤→]\s*", "", s, flags=re.MULTILINE)
+    # 装飾系絵文字/記号を除去
+    s = re.sub(r"[💡⭐️✨🔥✅▶️➤→•●◆■◉※★☆◎○●▲△■□◆◇▶▷➤➔➜]", "", s)
+    return s.strip()
+
+def _sanitize_sections(dct):
+    return {
+        "summary": _clean_for_readable(dct.get("summary", "")),
+        "advice":  _clean_for_readable(dct.get("advice", "")),
+        "next":    _clean_for_readable(dct.get("next", "")),
+    }
 
 @app.route("/reflect", methods=["POST"])
 def reflect():
@@ -38,32 +43,33 @@ def reflect():
         if not user_input:
             return jsonify({"error": "入力が空です"}), 400
 
-        sys = (
+        system = (
             "あなたは共感的な日本語コーチ。出力は必ず JSON 一行のみ。"
             "キーは summary, advice, next の3つ。"
-            "箇条番号やラベル（要約/助言/次の一言/カテゴリ）や絵文字は付けない。"
-            "自然で会話的な短い文で。"
+            "各値は自然な会話文。箇条番号や『要約/助言/次の一言/カテゴリ』等のラベル、絵文字は入れない。"
+            "短く端的に、相手の背中を押す一言も忘れずに。"
         )
-        usr = f"入力文：{user_input}\n短く端的に。"
+        prompt = f"入力文：{user_input}\n3つの短い会話文で。"
 
-        r = client.chat.completions.create(
+        res = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role":"system","content":sys},{"role":"user","content":usr}],
+            messages=[{"role":"system","content":system},
+                      {"role":"user","content":prompt}],
             temperature=0.8,
         )
-        raw = r.choices[0].message.content.strip()
+        raw = (res.choices[0].message.content or "").strip()
 
         data = {"summary":"", "advice":"", "next":""}
         try:
             data.update(json.loads(raw))
         except Exception:
-            # 万一JSONでなければ3行に割当
+            # JSONでなければ3行に割り当て
             parts = [p.strip() for p in raw.splitlines() if p.strip()]
-            if parts:   data["summary"] = parts[0]
-            if len(parts)>1: data["advice"]  = parts[1]
-            if len(parts)>2: data["next"]    = parts[2]
+            if parts: data["summary"] = parts[0]
+            if len(parts) > 1: data["advice"] = parts[1]
+            if len(parts) > 2: data["next"] = parts[2]
 
-        clean = sanitize_sections(data)
+        clean = _sanitize_sections(data)
         return jsonify({"reply": clean})
 
     except Exception as e:
